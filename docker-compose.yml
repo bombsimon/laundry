@@ -1,0 +1,31 @@
+version: '3'
+
+services:
+  go-service:
+    container_name: laundry-be
+    build:
+      context: .
+      dockerfile: Dockerfile.go
+    image: laundry-be
+    ports:
+      - "3000:3000"
+    links:
+      - db-service
+    volumes:
+      - $HOME/go:/go
+    tty: true
+    network_mode: bridge
+  db-service:
+    container_name: laundry-db
+    image: mysql:latest
+    ports:
+      - "3001:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: laundry
+      MYSQL_USER: laundry
+      MYSQL_PASSWORD: laundry
+      MYSQL_DATABASE: laundry
+    tty: true
+    network_mode: bridge
+
+# vim set ft=2 ts=2 expandtab:
