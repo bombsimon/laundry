@@ -5,16 +5,18 @@ services:
     container_name: laundry-be
     build:
       context: .
-      dockerfile: Dockerfile.go
+      dockerfile: Dockerfile
     image: laundry-be
     ports:
       - "3000:3000"
     links:
       - db-service
     volumes:
-      - $HOME/go:/go
+      - ${HOME}/go:/go
     tty: true
     network_mode: bridge
+    environment:
+      LAUNDRY_DSN: "laundry:laundry@tcp(laundry-db:3306)/laundry?parseTime=true"
   db-service:
     container_name: laundry-db
     image: mysql:latest

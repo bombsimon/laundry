@@ -9,5 +9,5 @@ RUN apk add --no-cache \
     openssh \
     mysql-client
 
-ENV GOPATH="/go" 
-WORKDIR /go/src/github.com/bombsimon/laundry-service
+ENV GOPATH="/go"
+WORKDIR /go/src/github.com/bombsimon/laundry
