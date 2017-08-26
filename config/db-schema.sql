@@ -8,7 +8,7 @@ CREATE TABLE `booker` (
     identifier  VARCHAR(100) NOT NULL, -- i.e. apartment no
     name        VARCHAR(100),
     email       VARCHAR(100),
-    phone       INT(16),
+    phone       VARCHAR(20),
     pin         VARCHAR(100)
 );
 
