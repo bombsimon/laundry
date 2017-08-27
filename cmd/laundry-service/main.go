@@ -6,6 +6,7 @@ import (
 
 	"github.com/bombsimon/laundry"
 	"github.com/bombsimon/laundry/api"
+	"github.com/bombsimon/laundry/middleware"
 
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
@@ -63,6 +64,9 @@ func main() {
 
 	http.ListenAndServe(
 		*httpListen,
-		loggedRouter,
+		middleware.Adapt(
+			loggedRouter,
+			middleware.Notify(),
+		),
 	)
 }
