@@ -2,6 +2,7 @@ package laundry
 
 import (
 	"database/sql"
+	"fmt"
 
 	_ "github.com/jmoiron/sqlx"
 )
@@ -15,6 +16,29 @@ type Booker struct {
 	Pin        *string `db:"pin"        json:"-"`
 }
 
+func (l *Laundry) GetBooker(id int) (*Booker, error) {
+	sqlStmt := `SELECT * FROM booker WHERE id = ?`
+	stmt, err := l.db.Preparex(sqlStmt)
+
+	defer stmt.Close()
+
+	if err != nil {
+		l.Logger.Errorf("Could not prepare statement: %s", err)
+		return nil, extError(err)
+	}
+
+	var b Booker
+	if err = stmt.QueryRowx(id).StructScan(&b); err == sql.ErrNoRows {
+		l.Logger.Warnf("Booker with ID %d not found", id)
+		return nil, newError(fmt.Sprintf("Booker with id %d not found", id)).WithStatus(404)
+	} else if err != nil {
+		l.Logger.Errorf("Could not get row: %s", err)
+		return nil, extError(err)
+	}
+
+	return &b, nil
+}
+
 func (l *Laundry) GetBookers() ([]Booker, error) {
 	sqlStmt := `SELECT * FROM booker`
 
@@ -23,7 +47,7 @@ func (l *Laundry) GetBookers() ([]Booker, error) {
 	rows, err := l.db.Queryx(sqlStmt)
 	if err != nil {
 		l.Logger.Errorf("Could not get bookers")
-		return bookers, err
+		return bookers, extError(err)
 	}
 
 	defer rows.Close()
@@ -41,27 +65,27 @@ func (l *Laundry) GetBookers() ([]Booker, error) {
 	return bookers, nil
 }
 
-func (l *Laundry) GetBooker(id int) (*Booker, error) {
-	sqlStmt := `SELECT * FROM booker WHERE id = ?`
+func (l *Laundry) AddBooker(b *Booker) (*Booker, error) {
+	sqlStmt := `
+	INSERT INTO booker (identifier, name, email, phone, pin)
+	VALUES (?, ?, ?, ?, ?)
+	`
+
 	stmt, err := l.db.Preparex(sqlStmt)
 
 	defer stmt.Close()
 
 	if err != nil {
-		l.Logger.Errorf("Could not prepare statement: %s", err)
-		return nil, nil
-	}
-
-	var b Booker
-	if err = stmt.QueryRowx(id).StructScan(&b); err == sql.ErrNoRows {
-		l.Logger.Warnf("Booker with ID %d not found", id)
-		return nil, nil
-	} else if err != nil {
-		l.Logger.Errorf("Could not get row: %s", err)
+		l.Logger.Errorf("Could not create booker: %s", err)
 		return nil, err
 	}
 
-	return &b, nil
+	if _, err = stmt.Exec(b.Identifier, b.Name, b.Email, b.Phone, b.Pin); err != nil {
+		l.Logger.Errorf("Could not create booker: %s", err)
+		return nil, err
+	}
+
+	return b, nil
 }
 
 func (l *Laundry) UpdateBooker(b *Booker) (*Booker, error) {
@@ -92,8 +116,24 @@ func (l *Laundry) UpdateBooker(b *Booker) (*Booker, error) {
 	return b, nil
 }
 
-func (l *Laundry) AddBooker(b *Booker) (*Booker, error) {
-	return b, nil
+func (l *Laundry) RemoveBooker(b *Booker) error {
+	sqlStmt := `DELETE FROM booker WHERE id = ?`
+
+	stmt, err := l.db.Preparex(sqlStmt)
+
+	defer stmt.Close()
+
+	if err != nil {
+		l.Logger.Errorf("Could not prepare statement: %s", err)
+		return newError("Could not prepare statement").Add("Could not remove booker")
+	}
+
+	if _, err := stmt.Exec(b.Id); err != nil {
+		l.Logger.Errorf("Could note remove booker")
+		return extError(err).Add("Could not remove booker")
+	}
+
+	return nil
 }
 
 func (b *Booker) Notify() *Booker {
