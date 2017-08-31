@@ -1,0 +1,11 @@
+---
+database:
+  host: 127.0.0.1
+  database: laundry
+  username: laundry
+  password: laundry
+
+http:
+  listen: ':3000'
+
+# vim: set sw=2 ts=2 expandtab:
