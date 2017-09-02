@@ -20,7 +20,7 @@ $ docker-compose up -d
 ```
 
 ### Settings
-All the settings that you can tweak are located in ```config/back-end.yaml```. Since the file will be copied upon building the container, edit this file before you start the container if you would like to make any changes.
+All the settings should be located in ```config/back-end.yaml```. Since the file will be copied upon building the container, edit this file before you start the container if you would like to make any changes.
 
 ## TODO
 * Setup DB/storage - might be easier to use filenames

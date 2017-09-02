@@ -8,4 +8,10 @@ database:
 http:
   listen: ':3000'
 
+# Max allowed bookings at the same time
+max_bookings: 1
+
+# Minimum slots between each booking (if more than 1 allowed)
+min_slot_duration: 3
+
 # vim: set sw=2 ts=2 expandtab:
