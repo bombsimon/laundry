@@ -1,18 +1,17 @@
 package laundry
 
 import (
-	"time"
-
 	_ "github.com/go-sql-driver/mysql"
 )
 
 type Slot struct {
-	Id       int       `db:"id"    json:"-"`
-	Start    time.Time `db:"start" json:"start"`
-	End      time.Time `db:"end"   json:"end"`
-	Machines []Machine `           json:"machines"`
-	Booker   *Booker   `           json:"booker"`
-	Notify   []*Booker `           json:"notify"`
+	Id       int       `db:"id"         json:"-"`
+	WeekDay  int       `db:"week_day"   json:"week_day"`
+	Start    string    `db:"start_time" json:"start"`
+	End      string    `db:"end_time"   json:"end"`
+	Machines []Machine `                json:"machines"`
+	Booker   *Booker   `                json:"booker"`
+	Notify   []*Booker `                json:"notify"`
 }
 
 func (l *Laundry) Release(s *Slot) *Slot {

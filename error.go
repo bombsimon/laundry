@@ -11,11 +11,11 @@ type LaundryError struct {
 	Status  int      `json:"status"`
 }
 
-func extError(e error) *LaundryError {
+func ExtError(e error) *LaundryError {
 	return &LaundryError{[]string{e.Error()}, 400}
 }
 
-func newError(e string) *LaundryError {
+func NewError(e string) *LaundryError {
 	return &LaundryError{[]string{e}, 400}
 }
 

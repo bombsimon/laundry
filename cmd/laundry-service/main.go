@@ -38,9 +38,9 @@ func main() {
 	// Machines
 	v1.HandleFunc("/machines", api.GetMachines).Name("get_machines").Methods("GET")
 	v1.HandleFunc("/machines", api.AddMachine).Name("add_machine").Methods("POST")
-	v1.HandleFunc("/vachines/{id:[0-9]+}", api.GetMachine).Name("get_machine").Methods("GET")
-	v1.HandleFunc("/vachines/{id:[0-9]+}", api.UpdateMachine).Name("update_machine").Methods("PUT")
-	v1.HandleFunc("/vachines/{id:[0-9]+}", api.RemoveMachine).Name("remove_machine").Methods("DELETE")
+	v1.HandleFunc("/machines/{id:[0-9]+}", api.GetMachine).Name("get_machine").Methods("GET")
+	v1.HandleFunc("/machines/{id:[0-9]+}", api.UpdateMachine).Name("update_machine").Methods("PUT")
+	v1.HandleFunc("/machines/{id:[0-9]+}", api.RemoveMachine).Name("remove_machine").Methods("DELETE")
 
 	// Slots
 	v1.HandleFunc("/slots", api.GetSlots).Name("get_slots").Methods("GET")
