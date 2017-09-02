@@ -4,9 +4,9 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/bombsimon/laundry"
 	"github.com/bombsimon/laundry/api"
 	"github.com/bombsimon/laundry/middleware"
+	"github.com/bombsimon/laundry/service"
 
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"

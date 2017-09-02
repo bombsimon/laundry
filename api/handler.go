@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/bombsimon/laundry"
+	"github.com/bombsimon/laundry/service"
 	"github.com/gorilla/mux"
 )
 
