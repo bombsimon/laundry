@@ -1,6 +1,7 @@
 package laundry
 
 import (
+	"fmt"
 	"os"
 	"time"
 
@@ -12,18 +13,36 @@ import (
 type Laundry struct {
 	db     *sqlx.DB
 	Logger *log.Entry
+	Config *Configuration
 }
 
-func New(dsn string) *Laundry {
+func New(configFile string) *Laundry {
 	log.SetFormatter(&log.JSONFormatter{})
 	log.SetOutput(os.Stdout)
 	logger := log.WithFields(log.Fields{})
+
+	config, err := NewConfig(configFile)
+	if err != nil {
+		logger.Warnf("Configuration file missing - trying to proceed with unknown result")
+		config = &Configuration{}
+	}
+
+	dsn := os.Getenv("LAUNDRY_DSN")
+	if dsn == "" {
+		db := config.Database
+		dsn = fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?parseTime=1", db.Username, db.Password, db.Host, db.Port, db.Database)
+	}
+
+	if os.Getenv("LAUNDRY_HTTP_LISTEN") != "" {
+		config.HTTP.Listen = os.Getenv("LAUNDRY_HTTP_LISTEN")
+	}
 
 	db := mysqlConnect(dsn, 5, logger)
 
 	l := Laundry{
 		Logger: logger,
 		db:     db,
+		Config: config,
 	}
 
 	return &l

@@ -1,12 +1,13 @@
 ---
 database:
-  host: laundry-db
+  host: localhost
+  port: 3001
   database: laundry
   username: laundry
   password: laundry
 
 http:
-  listen: ':3000'
+  listen: ':3400'
 
 bookings:
   max_allowed: 1

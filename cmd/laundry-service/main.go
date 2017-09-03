@@ -15,13 +15,12 @@ import (
 
 func main() {
 	var (
-		dsn        = kingpin.Flag("dsn", "DSN like 'user:password@tcp(addr:port)/dbName?param=value").Envar("LAUNDRY_DSN").String()
-		httpListen = kingpin.Flag("listen", "HTTP listen IP and/or port").Default(":3000").String()
+		configFile = kingpin.Flag("config-file", "Path to configuration file").Envar("LAUNDRY_CONFIG_FILE").String()
 	)
 
 	kingpin.Parse()
 
-	service := laundry.New(*dsn)
+	service := laundry.New(*configFile)
 	api := api.New(service)
 
 	r := mux.NewRouter()
@@ -63,10 +62,10 @@ func main() {
 	// Notificationos
 
 	loggedRouter := handlers.LoggingHandler(os.Stdout, r)
-	service.Logger.Infof("Serving up at %s...", *httpListen)
+	service.Logger.Infof("Serving up at %s...", service.Config.HTTP.Listen)
 
 	http.ListenAndServe(
-		*httpListen,
+		service.Config.HTTP.Listen,
 		middleware.Adapt(
 			loggedRouter,
 			middleware.Notify(),
