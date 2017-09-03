@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/bombsimon/laundry/service"
+	"github.com/bombsimon/laundry"
 	"github.com/gorilla/mux"
 )
 
@@ -129,7 +129,7 @@ func (api *LaundryAPI) GetBookerBookings(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	bookings, err := api.laundry.GetBookings(b)
+	bookings, err := api.laundry.GetBookerBookings(b)
 	if err != nil {
 		w.WriteHeader(err.(*laundry.LaundryError).Status)
 		w.Write(err.(*laundry.LaundryError).AsJSON())
@@ -249,6 +249,15 @@ func (api *LaundryAPI) RemoveMachine(w http.ResponseWriter, r *http.Request) {
 }
 
 func (api *LaundryAPI) GetSlots(w http.ResponseWriter, r *http.Request) {
+	s, err := api.laundry.GetSlots()
+	if err != nil {
+		w.WriteHeader(err.(*laundry.LaundryError).Status)
+		w.Write(err.(*laundry.LaundryError).AsJSON())
+		return
+	}
+
+	jb, _ := json.Marshal(s)
+	w.Write(jb)
 }
 
 func (api *LaundryAPI) AddSlot(w http.ResponseWriter, r *http.Request) {
@@ -276,6 +285,21 @@ func (api *LaundryAPI) UpdateBooking(w http.ResponseWriter, r *http.Request) {
 }
 
 func (api *LaundryAPI) RemoveBooking(w http.ResponseWriter, r *http.Request) {
+}
+
+func (api *LaundryAPI) GetMonthSchedule(w http.ResponseWriter, r *http.Request) {
+	start, _ := mux.Vars(r)["start"]
+	end, _ := mux.Vars(r)["end"]
+
+	s, err := api.laundry.GetMonthSchedule(start, end)
+	if err != nil {
+		w.WriteHeader(err.(*laundry.LaundryError).Status)
+		w.Write(err.(*laundry.LaundryError).AsJSON())
+		return
+	}
+
+	jb, _ := json.Marshal(s)
+	w.Write(jb)
 }
 
 func (api *LaundryAPI) getJSONBody(i interface{}, b io.ReadCloser) error {

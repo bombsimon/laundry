@@ -1,6 +1,6 @@
 ---
 database:
-  host: 127.0.0.1
+  host: laundry-db
   database: laundry
   username: laundry
   password: laundry
@@ -8,10 +8,11 @@ database:
 http:
   listen: ':3000'
 
-# Max allowed bookings at the same time
-max_bookings: 1
+bookings:
+  max_allowed: 1
+  min_slot_duration: 3
 
-# Minimum slots between each booking (if more than 1 allowed)
-min_slot_duration: 3
+administration:
+  support_email: landlord@example.com
 
 # vim: set sw=2 ts=2 expandtab:
