@@ -25,7 +25,7 @@ func New(l *laundry.Laundry) *LaundryAPI {
 	return &api
 }
 
-// GetBookers servers the HTTP handler to get bookers
+// GetBookers is the HTTP handler to get bookers
 func (api *LaundryAPI) GetBookers(w http.ResponseWriter, r *http.Request) {
 	b, _ := api.laundry.GetBookers()
 
@@ -33,6 +33,7 @@ func (api *LaundryAPI) GetBookers(w http.ResponseWriter, r *http.Request) {
 	w.Write(jb)
 }
 
+// AddBooker is the HTTP handler to add a booker
 func (api *LaundryAPI) AddBooker(w http.ResponseWriter, r *http.Request) {
 	var inRequest laundry.Booker
 	if err := api.getJSONBody(&inRequest, r.Body); err != nil {
@@ -291,7 +292,7 @@ func (api *LaundryAPI) GetMonthSchedule(w http.ResponseWriter, r *http.Request) 
 	start, _ := mux.Vars(r)["start"]
 	end, _ := mux.Vars(r)["end"]
 
-	s, err := api.laundry.GetMonthSchedule(start, end)
+	s, err := api.laundry.GetIntervalSchedule(start, end)
 	if err != nil {
 		w.WriteHeader(err.(*laundry.LaundryError).Status)
 		w.Write(err.(*laundry.LaundryError).AsJSON())

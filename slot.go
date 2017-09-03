@@ -6,6 +6,7 @@ import (
 	_ "github.com/go-sql-driver/mysql"
 )
 
+// Slot represents an available slot and corresponding machines
 type Slot struct {
 	Id       int       `db:"id"         json:"-"`
 	Weekday  int       `db:"week_day"   json:"week_day"`
@@ -14,12 +15,20 @@ type Slot struct {
 	Machines []Machine `                json:"machines"`
 }
 
+// SlotMachine represents the connection between one slot and one machine
 type SlotMachine struct {
 	Id        int `db:"id"          json:"-"`
 	SlotId    int `db:"id_slots"    json:"id_slot"`
 	MachineId int `db:"id_machines" json:"id_machine"`
 }
 
+// SlotWithBooker represents a slot and a possible booker for that slot
+type SlotWithBooker struct {
+	Slot
+	Booker *Booker `json:"booker"`
+}
+
+// GetSlots will return a list of all slots and it's machines
 func (l *Laundry) GetSlots() ([]Slot, error) {
 	var slots []Slot
 
@@ -66,12 +75,10 @@ func (l *Laundry) GetSlots() ([]Slot, error) {
 	return slots, nil
 }
 
-type FullSlot struct {
-	Slot
-	Booker *Booker `json:"booker"`
-}
-
-func (l *Laundry) GetMonthSchedule(start, end string) (map[time.Time][]FullSlot, error) {
+// GetIntervalSchedule will return a schedule between a given start- and end time.
+// A map for each day will be returned holding a list of slots and possible bookers
+// for the given slot.
+func (l *Laundry) GetIntervalSchedule(start, end string) (map[time.Time][]SlotWithBooker, error) {
 	sTime, eTime, err := dateIntervals(start, end)
 	if err != nil {
 		return nil, err
@@ -80,13 +87,13 @@ func (l *Laundry) GetMonthSchedule(start, end string) (map[time.Time][]FullSlot,
 	slots, _ := l.GetSlots()
 	bookings, _ := l.GetBookingsInterval(start, end)
 
-	var month = make(map[time.Time][]FullSlot)
+	var month = make(map[time.Time][]SlotWithBooker)
 
 	for d := *sTime; d != (*eTime).AddDate(0, 0, 1); d = d.AddDate(0, 0, 1) {
-		var fs []FullSlot
+		var fs []SlotWithBooker
 
 		for _, s := range slots {
-			var full FullSlot
+			var full SlotWithBooker
 
 			// Check for slots this weekday
 			if d.Weekday() == time.Weekday(s.Weekday) {

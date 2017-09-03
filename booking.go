@@ -8,8 +8,9 @@ import (
 	"github.com/jmoiron/sqlx"
 )
 
+// Booker represents a booker
 type Booker struct {
-	Id         int     `db:"id"         json:"-"`
+	Id         int     `db:"id"         json:"id"`
 	Identifier string  `db:"identifier" json:"identifier"` // Apartment number
 	Name       *string `db:"name"       json:"name"`
 	Email      *string `db:"email"      json:"email"`
@@ -17,6 +18,7 @@ type Booker struct {
 	Pin        *string `db:"pin"        json:"-"`
 }
 
+// Bookings represents a booking
 type Bookings struct {
 	Id       int       `db:"id"        json:"-"`
 	BookDate time.Time `db:"book_date" json:"book_date"`
@@ -24,6 +26,8 @@ type Bookings struct {
 	BookerId int       `db:"id_booker" json:"booker_id"`
 }
 
+// BookerBookingsRow represents the database struct to use when fetching
+// bookings (slots, machines) and booker.
 type BookerBookingsRow struct {
 	Booker
 	Bookings
@@ -31,6 +35,7 @@ type BookerBookingsRow struct {
 	Machine
 }
 
+// BookerBookings represents a booking including a Booker structure
 type BookerBookings struct {
 	BookDate time.Time `json:"date"`
 	Start    string    `json:"start"`
@@ -39,6 +44,8 @@ type BookerBookings struct {
 	Machines []Machine `json:"machines"`
 }
 
+// GetBooker will return a booker based on an id. If the booker is not found
+// or an error fetching the booker occurs, an error will be returned.
 func (l *Laundry) GetBooker(id int) (*Booker, error) {
 	sqlStmt := `SELECT * FROM booker WHERE id = ?`
 	stmt, err := l.db.Preparex(sqlStmt)
@@ -62,6 +69,7 @@ func (l *Laundry) GetBooker(id int) (*Booker, error) {
 	return &b, nil
 }
 
+// GetBookers will return a list of all bookers available
 func (l *Laundry) GetBookers() ([]Booker, error) {
 	sqlStmt := `SELECT * FROM booker`
 
@@ -88,6 +96,9 @@ func (l *Laundry) GetBookers() ([]Booker, error) {
 	return bookers, nil
 }
 
+// AddBooker will take a Booker strucutre and add it to the database.
+// If the Booker is an existing Booker (or has an id), the id will be
+// omitted and a possible copy of the booker will be created.
 func (l *Laundry) AddBooker(b *Booker) (*Booker, error) {
 	sqlStmt := `
 	INSERT INTO booker (identifier, name, email, phone, pin)
@@ -111,6 +122,8 @@ func (l *Laundry) AddBooker(b *Booker) (*Booker, error) {
 	return b, nil
 }
 
+// UpdateBooker will take a Booker and update the row with corresponding
+// id with the data in the Booker object.
 func (l *Laundry) UpdateBooker(b *Booker) (*Booker, error) {
 	sqlStmt := `
 	UPDATE
@@ -139,6 +152,9 @@ func (l *Laundry) UpdateBooker(b *Booker) (*Booker, error) {
 	return b, nil
 }
 
+// RemoveBooker will take a Booker and remove the row with corresponding
+// id in the database. A remove will cascade and remove belonging bookings
+// and notifications.
 func (l *Laundry) RemoveBooker(b *Booker) error {
 	sqlStmt := `DELETE FROM booker WHERE id = ?`
 
@@ -159,6 +175,7 @@ func (l *Laundry) RemoveBooker(b *Booker) error {
 	return nil
 }
 
+// ParseBookings will take an *sql.Rows and parse to a list of BookerBookings
 func (l *Laundry) ParseBookings(rows *sqlx.Rows) (*[]BookerBookings, error) {
 	defer rows.Close()
 
@@ -209,6 +226,9 @@ func (l *Laundry) ParseBookings(rows *sqlx.Rows) (*[]BookerBookings, error) {
 	return &retBookings, nil
 }
 
+// GetBookerBookings will take a Booker and return a set of BookerBookings
+// for that Booker. The bookings returned will always be future bookings and
+// not from the past.
 func (l *Laundry) GetBookerBookings(b *Booker) (*[]BookerBookings, error) {
 	sqlStmt := `
 	SELECT
@@ -252,6 +272,7 @@ func (l *Laundry) GetBookerBookings(b *Booker) (*[]BookerBookings, error) {
 	return result, nil
 }
 
+// GetBookingsInterval will return a list of BookerBookings between two given dates.
 func (l *Laundry) GetBookingsInterval(start, end string) (*[]BookerBookings, error) {
 	sTime, eTime, err := dateIntervals(start, end)
 	if err != nil {
@@ -300,6 +321,7 @@ func (l *Laundry) GetBookingsInterval(start, end string) (*[]BookerBookings, err
 	return result, nil
 }
 
+// Notify will send a notification to the Booker
 func (b *Booker) Notify() *Booker {
 	// Send an email
 
