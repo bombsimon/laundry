@@ -8,20 +8,18 @@ services:
       dockerfile: Dockerfile
     image: laundry-be
     ports:
-      - "3000:3000"
+      - "3400:3400"
     links:
       - db-service
-    volumes:
-      - ${HOME}/go:/go
+    depends_on:
+      - db-service
     tty: true
     network_mode: bridge
-    environment:
-      LAUNDRY_DSN: "laundry:laundry@tcp(laundry-db:3306)/laundry?parseTime=true"
   db-service:
     container_name: laundry-db
     image: mysql:latest
     ports:
-      - "3001:3306"
+      - "3401:3306"
     volumes:
          - ./config/sql:/docker-entrypoint-initdb.d
     environment:

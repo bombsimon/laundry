@@ -9,5 +9,13 @@ RUN apk add --no-cache \
     openssh \
     mysql-client
 
-ENV GOPATH="/go"
+ENV GOPATH="/go" \
+    PATH="$PATH:$GOPATH/bin"
+
 WORKDIR /go/src/github.com/bombsimon/laundry
+
+COPY ./ /go/src/github.com/bombsimon/laundry/
+
+RUN go get -u github.com/golang/dep/cmd/dep && dep ensure
+
+CMD go build -o laundry cmd/laundry-service/*.go && ./laundry --config-file config/back-end.yaml

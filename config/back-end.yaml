@@ -1,7 +1,7 @@
 ---
 database:
-  host: localhost
-  port: 3001
+  host: db-service
+  port: 3306
   database: laundry
   username: laundry
   password: laundry
