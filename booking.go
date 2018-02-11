@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/bombsimon/laundry/database"
+	"github.com/bombsimon/laundry/errors"
 	"github.com/jmoiron/sqlx"
 )
 
@@ -47,23 +49,25 @@ type BookerBookings struct {
 // GetBooker will return a booker based on an id. If the booker is not found
 // or an error fetching the booker occurs, an error will be returned.
 func (l *Laundry) GetBooker(id int) (*Booker, error) {
+	db := database.GetConnection()
+
 	sqlStmt := `SELECT * FROM booker WHERE id = ?`
-	stmt, err := l.db.Preparex(sqlStmt)
+	stmt, err := db.Preparex(sqlStmt)
 
 	defer stmt.Close()
 
 	if err != nil {
 		l.Logger.Errorf("Could not prepare statement: %s", err)
-		return nil, ExtError(err)
+		return nil, errors.New(err)
 	}
 
 	var b Booker
 	if err = stmt.QueryRowx(id).StructScan(&b); err == sql.ErrNoRows {
 		l.Logger.Warnf("Booker with ID %d not found", id)
-		return nil, NewError(fmt.Sprintf("Booker with id %d not found", id)).WithStatus(404)
+		return nil, errors.New(fmt.Sprintf("Booker with id %d not found", id)).WithStatus(404)
 	} else if err != nil {
 		l.Logger.Errorf("Could not get row: %s", err)
-		return nil, ExtError(err)
+		return nil, errors.New(err)
 	}
 
 	return &b, nil
@@ -71,14 +75,16 @@ func (l *Laundry) GetBooker(id int) (*Booker, error) {
 
 // GetBookers will return a list of all bookers available
 func (l *Laundry) GetBookers() ([]Booker, error) {
+	db := database.GetConnection()
+
 	sqlStmt := `SELECT * FROM booker`
 
 	var bookers []Booker
 
-	rows, err := l.db.Queryx(sqlStmt)
+	rows, err := db.Queryx(sqlStmt)
 	if err != nil {
 		l.Logger.Errorf("Could not get bookers")
-		return bookers, ExtError(err)
+		return bookers, errors.New(err)
 	}
 
 	defer rows.Close()
@@ -100,12 +106,14 @@ func (l *Laundry) GetBookers() ([]Booker, error) {
 // If the Booker is an existing Booker (or has an id), the id will be
 // omitted and a possible copy of the booker will be created.
 func (l *Laundry) AddBooker(b *Booker) (*Booker, error) {
+	db := database.GetConnection()
+
 	sqlStmt := `
 	INSERT INTO booker (identifier, name, email, phone, pin)
 	VALUES (?, ?, ?, ?, ?)
 	`
 
-	stmt, err := l.db.Preparex(sqlStmt)
+	stmt, err := db.Preparex(sqlStmt)
 
 	defer stmt.Close()
 
@@ -125,6 +133,8 @@ func (l *Laundry) AddBooker(b *Booker) (*Booker, error) {
 // UpdateBooker will take a Booker and update the row with corresponding
 // id with the data in the Booker object.
 func (l *Laundry) UpdateBooker(b *Booker) (*Booker, error) {
+	db := database.GetConnection()
+
 	sqlStmt := `
 	UPDATE
 		booker
@@ -138,7 +148,7 @@ func (l *Laundry) UpdateBooker(b *Booker) (*Booker, error) {
 		id = ?
 	`
 
-	stmt, err := l.db.Preparex(sqlStmt)
+	stmt, err := db.Preparex(sqlStmt)
 	if err != nil {
 		l.Logger.Warnf("Could not prepare statement: %s", err)
 		return nil, err
@@ -156,20 +166,22 @@ func (l *Laundry) UpdateBooker(b *Booker) (*Booker, error) {
 // id in the database. A remove will cascade and remove belonging bookings
 // and notifications.
 func (l *Laundry) RemoveBooker(b *Booker) error {
+	db := database.GetConnection()
+
 	sqlStmt := `DELETE FROM booker WHERE id = ?`
 
-	stmt, err := l.db.Preparex(sqlStmt)
+	stmt, err := db.Preparex(sqlStmt)
 
 	defer stmt.Close()
 
 	if err != nil {
 		l.Logger.Errorf("Could not prepare statement: %s", err)
-		return NewError("Could not prepare statement").Add("Could not remove booker")
+		return errors.New("Could not prepare statement").Add("Could not remove booker")
 	}
 
 	if _, err := stmt.Exec(b.Id); err != nil {
 		l.Logger.Errorf("Could note remove booker")
-		return ExtError(err).Add("Could not remove booker")
+		return errors.New(err).Add("Could not remove booker")
 	}
 
 	return nil
@@ -186,7 +198,7 @@ func (l *Laundry) ParseBookings(rows *sqlx.Rows) (*[]BookerBookings, error) {
 		var bl = new(BookerBookingsRow)
 		if err := rows.StructScan(bl); err != nil {
 			l.Logger.Warnf("Could not gett bookings: ", err)
-			return nil, ExtError(err)
+			return nil, errors.New(err)
 		}
 
 		booker := Booker{
@@ -230,6 +242,8 @@ func (l *Laundry) ParseBookings(rows *sqlx.Rows) (*[]BookerBookings, error) {
 // for that Booker. The bookings returned will always be future bookings and
 // not from the past.
 func (l *Laundry) GetBookerBookings(b *Booker) (*[]BookerBookings, error) {
+	db := database.GetConnection()
+
 	sqlStmt := `
 	SELECT
 		b1.*, b2.*, s.*, m.*
@@ -252,16 +266,16 @@ func (l *Laundry) GetBookerBookings(b *Booker) (*[]BookerBookings, error) {
 		b2.id = ?
 	`
 
-	stmt, err := l.db.Preparex(sqlStmt)
+	stmt, err := db.Preparex(sqlStmt)
 	if err != nil {
 		l.Logger.Warnf("Could not prepare statement: %s", err)
-		return nil, ExtError(err)
+		return nil, errors.New(err)
 	}
 
 	rows, err := stmt.Queryx(b.Id)
 	if err != nil {
 		l.Logger.Errorf("Could not get bookings: %s", err)
-		return nil, ExtError(err)
+		return nil, errors.New(err)
 	}
 
 	result, err := l.ParseBookings(rows)
@@ -274,6 +288,7 @@ func (l *Laundry) GetBookerBookings(b *Booker) (*[]BookerBookings, error) {
 
 // GetBookingsInterval will return a list of BookerBookings between two given dates.
 func (l *Laundry) GetBookingsInterval(start, end string) (*[]BookerBookings, error) {
+	db := database.GetConnection()
 	sTime, eTime, err := dateIntervals(start, end)
 	if err != nil {
 		return nil, err
@@ -301,16 +316,16 @@ func (l *Laundry) GetBookingsInterval(start, end string) (*[]BookerBookings, err
 		b1.book_date <= DATE(?)
 	`
 
-	stmt, err := l.db.Preparex(sqlStmt)
+	stmt, err := db.Preparex(sqlStmt)
 	if err != nil {
 		l.Logger.Warnf("Could not prepare statement: %s", err)
-		return nil, ExtError(err)
+		return nil, errors.New(err)
 	}
 
 	rows, err := stmt.Queryx(sTime.String(), eTime.String())
 	if err != nil {
 		l.Logger.Errorf("Could not get bookings: %s", err)
-		return nil, ExtError(err)
+		return nil, errors.New(err)
 	}
 
 	result, err := l.ParseBookings(rows)

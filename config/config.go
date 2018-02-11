@@ -1,10 +1,11 @@
-package laundry
+package config
 
 import (
 	"io/ioutil"
 	"net/http"
 
-	"gopkg.in/yaml.v2"
+	"github.com/bombsimon/laundry/errors"
+	yaml "gopkg.in/yaml.v2"
 )
 
 // Configuration represents the full configuration for the laundry service
@@ -18,11 +19,14 @@ type Configuration struct {
 
 // Database represents the database configuration for the laundry service
 type Database struct {
-	Host     string `yaml:"host"`
-	Port     int    `yaml:"port"`
-	Database string `yaml:"database"`
-	Username string `yaml:"username"`
-	Password string `yaml:"password"`
+	Host          string `yaml:"host"`
+	Port          int    `yaml:"port"`
+	Database      string `yaml:"database"`
+	Username      string `yaml:"username"`
+	Password      string `yaml:"password"`
+	RetryCount    int    `yaml:"retry_count"`
+	RetryInterval int    `yaml:"retry_interval"`
+	PoolSize      int    `yaml:"pool_size"`
 }
 
 // Http represents the HTTP configuration for the laundry RESTful API
@@ -41,22 +45,22 @@ type Administration struct {
 	SupportEmail string `yaml:"support_email"`
 }
 
-// NewConfig will create a new configuration based on a YAML file.
-// The argument passed to NewConfig() is the path to a YAML file.
-func NewConfig(configFile string) (*Configuration, error) {
+// New will create a new configuration based on a YAML file.
+// The argument passed to New() is the path to a YAML file.
+func New(configFile string) (*Configuration, error) {
 	var c Configuration
 
 	if configFile == "" {
-		configFile = "config/back-end.yaml"
+		configFile = "files/back-end.yaml"
 	}
 
 	file, err := ioutil.ReadFile(configFile)
 	if err != nil {
-		return nil, ExtError(err).WithStatus(http.StatusInternalServerError)
+		return nil, errors.New(err).WithStatus(http.StatusInternalServerError)
 	}
 
 	if err = yaml.Unmarshal(file, &c); err != nil {
-		return nil, ExtError(err).WithStatus(http.StatusInternalServerError)
+		return nil, errors.New(err).WithStatus(http.StatusInternalServerError)
 	}
 
 	return &c, nil

@@ -1,4 +1,4 @@
-package laundry
+package errors
 
 import (
 	"encoding/json"
@@ -13,18 +13,24 @@ import (
 type LaundryError struct {
 	Reasons []string `json:"errors"`
 	Status  int      `json:"status"`
+	Origin  error    `json:"-"`
 }
 
-// ExtError will take an existing (external) error and create a
-// LaundryError. The status code will always default to http.StatusBadRequest
-func ExtError(e error) *LaundryError {
-	return &LaundryError{[]string{e.Error()}, http.StatusBadRequest}
-}
-
-// NewError will take a string and create a LaundryError. The status code
+// New will take a string or an error and create a LaundryError. The status code
 // will always default to http.StatusBadRequest
-func NewError(e string) *LaundryError {
-	return &LaundryError{[]string{e}, http.StatusBadRequest}
+func New(e interface{}) *LaundryError {
+	le := LaundryError{
+		Status: http.StatusBadRequest,
+	}
+
+	switch v := e.(type) {
+	case string:
+		le.Reasons = []string{v}
+	case error:
+		le.Reasons = []string{v.Error()}
+	}
+
+	return &le
 }
 
 // Error makes sure LaundryError implements the error interface and returns
@@ -38,6 +44,13 @@ func (e LaundryError) Error() string {
 // Usage: err := NewError("Something went wrong").WithStatus(http.StatusNotFound)
 func (e *LaundryError) WithStatus(i int) *LaundryError {
 	e.Status = i
+
+	return e
+}
+
+// CasuedBy will add an error to the LaundryError to see what caused it
+func (e *LaundryError) CausedBy(err error) *LaundryError {
+	e.Origin = err
 
 	return e
 }

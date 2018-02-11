@@ -3,6 +3,8 @@ package laundry
 import (
 	"time"
 
+	"github.com/bombsimon/laundry/database"
+	"github.com/bombsimon/laundry/errors"
 	_ "github.com/go-sql-driver/mysql"
 )
 
@@ -32,14 +34,15 @@ type SlotWithBooker struct {
 func (l *Laundry) GetSlots() ([]Slot, error) {
 	var slots []Slot
 
+	db := database.GetConnection()
 	slotSql := `SELECT * FROM slots`
 	machineSql := ` SELECT m.* FROM machines AS m JOIN slots_machines AS sm
 		ON sm.id_machines = m.id WHERE sm.id_slots = ?`
 
-	rows, err := l.db.Queryx(slotSql)
+	rows, err := db.Queryx(slotSql)
 	if err != nil {
 		l.Logger.Errorf("Could not get slots: %s", err)
-		return slots, ExtError(err)
+		return slots, errors.New(err)
 	}
 
 	defer rows.Close()
@@ -48,13 +51,13 @@ func (l *Laundry) GetSlots() ([]Slot, error) {
 		var s Slot
 		if err := rows.StructScan(&s); err != nil {
 			l.Logger.Errorf("Could not fetch row: %s", err)
-			return slots, ExtError(err)
+			return slots, errors.New(err)
 		}
 
-		mRows, err := l.db.Queryx(machineSql, s.Id)
+		mRows, err := db.Queryx(machineSql, s.Id)
 		if err != nil {
 			l.Logger.Errorf("Could not get machines: %s", err)
-			return slots, ExtError(err)
+			return slots, errors.New(err)
 		}
 
 		defer mRows.Close()
@@ -63,7 +66,7 @@ func (l *Laundry) GetSlots() ([]Slot, error) {
 			var m Machine
 			if err := mRows.StructScan(&m); err != nil {
 				l.Logger.Errorf("Could not fetch row: %s", err)
-				return slots, ExtError(err)
+				return slots, errors.New(err)
 			}
 
 			s.Machines = append(s.Machines, m)

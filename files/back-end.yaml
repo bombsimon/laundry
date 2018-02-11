@@ -1,13 +1,16 @@
 ---
 database:
-  host: db-service
+  host: laundry-db
   port: 3306
   database: laundry
   username: laundry
   password: laundry
+  retry_count: 30
+  retry_interval: 5
+  pool_size: 1
 
 http:
-  listen: ':3400'
+  listen: ':3500'
 
 bookings:
   max_allowed: 1

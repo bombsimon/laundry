@@ -17,21 +17,21 @@ RESTful API to use in combination with a GUI or front end service.
 package laundry
 
 import (
-	"fmt"
 	"os"
 	"time"
 
+	"github.com/bombsimon/laundry/config"
+	"github.com/bombsimon/laundry/database"
+	"github.com/bombsimon/laundry/errors"
 	_ "github.com/go-sql-driver/mysql"
-	"github.com/jmoiron/sqlx"
 	log "github.com/sirupsen/logrus"
 )
 
 // Laundry represents a laundry service with a database handler, a logger
 // and configuration.
 type Laundry struct {
-	db     *sqlx.DB
 	Logger *log.Entry
-	Config *Configuration
+	Config *config.Configuration
 }
 
 // New will take a string with a path to the configuration file and setup a
@@ -45,49 +45,24 @@ func New(configFile string) *Laundry {
 	log.SetOutput(os.Stdout)
 	logger := log.WithFields(log.Fields{})
 
-	config, err := NewConfig(configFile)
+	conf, err := config.New(configFile)
 	if err != nil {
 		logger.Warnf("Configuration file missing - trying to proceed with unknown result")
-		config = &Configuration{}
+		conf = &config.Configuration{}
 	}
 
-	dsn := os.Getenv("LAUNDRY_DSN")
-	if dsn == "" {
-		db := config.Database
-		dsn = fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?parseTime=1", db.Username, db.Password, db.Host, db.Port, db.Database)
-	}
+	database.SetupConnection(conf.Database)
 
 	if os.Getenv("LAUNDRY_HTTP_LISTEN") != "" {
-		config.HTTP.Listen = os.Getenv("LAUNDRY_HTTP_LISTEN")
+		conf.HTTP.Listen = os.Getenv("LAUNDRY_HTTP_LISTEN")
 	}
-
-	db := mysqlConnect(dsn, 5, logger)
 
 	l := Laundry{
 		Logger: logger,
-		db:     db,
-		Config: config,
+		Config: conf,
 	}
 
 	return &l
-}
-
-// mysqlConnect will take a DSN and a retry count and try to connect to the
-// database that many times. This menas that it will take a long time
-// to return a Laundry object if it's not possible to connect to the database.
-func mysqlConnect(dsn string, retries int, logger *log.Entry) *sqlx.DB {
-	for i := retries; i >= 0; i-- {
-		db, err := sqlx.Connect("mysql", dsn)
-		if err != nil {
-			logger.Infof("Could not connect. Retrying in %d seconds. Reason: %s", 5, err)
-			time.Sleep(time.Second * 5)
-			continue
-		}
-
-		return db
-	}
-
-	return nil
 }
 
 // dateIntervals is a generic function that takes two strings, parses them
@@ -98,7 +73,7 @@ func dateIntervals(start, end string) (*time.Time, *time.Time, error) {
 	eTime, _ := time.Parse("2006-01-02", end)
 
 	if sTime.After(eTime) {
-		return nil, nil, NewError("Start time cannot be after end time")
+		return nil, nil, errors.New("Start time cannot be after end time")
 	}
 
 	return &sTime, &eTime, nil
