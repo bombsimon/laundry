@@ -13,22 +13,24 @@ import (
 
 // LaundryAPI represents an API to the laundry service
 type LaundryAPI struct {
-	laundry *laundry.Laundry
+	version string
 }
 
 // New will create a new LaundryAPI and add the passed Laundry service
 // in the internal field laundry.
 func New(l *laundry.Laundry) *LaundryAPI {
-	api := LaundryAPI{
-		laundry: l,
-	}
+	api := LaundryAPI{"v1"}
 
 	return &api
 }
 
 // GetBookers is the HTTP handler to get bookers
 func (api *LaundryAPI) GetBookers(w http.ResponseWriter, r *http.Request) {
-	b, _ := api.laundry.GetBookers()
+	b, err := laundry.GetBookers()
+	if err != nil {
+		renderError(err, w)
+		return
+	}
 
 	jb, _ := json.Marshal(b)
 	w.Write(jb)
@@ -37,23 +39,14 @@ func (api *LaundryAPI) GetBookers(w http.ResponseWriter, r *http.Request) {
 // AddBooker is the HTTP handler to add a booker
 func (api *LaundryAPI) AddBooker(w http.ResponseWriter, r *http.Request) {
 	var inRequest laundry.Booker
-	if err := api.getJSONBody(&inRequest, r.Body); err != nil {
-		w.WriteHeader(err.(*errors.LaundryError).Status)
-		w.Write(err.(*errors.LaundryError).AsJSON())
+	if err := getJSONBody(&inRequest, r.Body); err != nil {
+		renderError(err, w)
 		return
 	}
 
-	if inRequest.Identifier == "" {
-		err := errors.New("Missing identifier in request").WithStatus(http.StatusBadRequest)
-		w.WriteHeader(err.Status)
-		w.Write(err.AsJSON())
-		return
-	}
-
-	b, err := api.laundry.AddBooker(&inRequest)
+	b, err := laundry.AddBooker(&inRequest)
 	if err != nil {
-		w.WriteHeader(err.(*errors.LaundryError).Status)
-		w.Write(err.(*errors.LaundryError).AsJSON())
+		renderError(err, w)
 		return
 	}
 
@@ -63,10 +56,9 @@ func (api *LaundryAPI) AddBooker(w http.ResponseWriter, r *http.Request) {
 
 func (api *LaundryAPI) GetBooker(w http.ResponseWriter, r *http.Request) {
 	bookerId, _ := strconv.Atoi(mux.Vars(r)["id"])
-	b, err := api.laundry.GetBooker(bookerId)
+	b, err := laundry.GetBooker(bookerId)
 	if err != nil {
-		w.WriteHeader(err.(*errors.LaundryError).Status)
-		w.Write(err.(*errors.LaundryError).AsJSON())
+		renderError(err, w)
 		return
 	}
 
@@ -76,26 +68,18 @@ func (api *LaundryAPI) GetBooker(w http.ResponseWriter, r *http.Request) {
 
 func (api *LaundryAPI) UpdateBooker(w http.ResponseWriter, r *http.Request) {
 	bookerId, _ := strconv.Atoi(mux.Vars(r)["id"])
-	b, err := api.laundry.GetBooker(bookerId)
-	if err != nil {
-		w.WriteHeader(err.(*errors.LaundryError).Status)
-		w.Write(err.(*errors.LaundryError).AsJSON())
-		return
-	}
 
 	var inRequest laundry.Booker
-	if err := api.getJSONBody(&inRequest, r.Body); err != nil {
-		w.WriteHeader(err.(*errors.LaundryError).Status)
-		w.Write(err.(*errors.LaundryError).AsJSON())
+	if err := getJSONBody(&inRequest, r.Body); err != nil {
+		renderError(err, w)
 		return
 	}
 
-	defer r.Body.Close()
-
-	b.Phone = inRequest.Phone
-	b.Email = inRequest.Email
-
-	b, _ = api.laundry.UpdateBooker(b)
+	b, err := laundry.UpdateBooker(bookerId, &inRequest)
+	if err != nil {
+		renderError(err, w)
+		return
+	}
 
 	jb, _ := json.Marshal(b)
 	w.Write(jb)
@@ -103,16 +87,14 @@ func (api *LaundryAPI) UpdateBooker(w http.ResponseWriter, r *http.Request) {
 
 func (api *LaundryAPI) RemoveBooker(w http.ResponseWriter, r *http.Request) {
 	bookerId, _ := strconv.Atoi(mux.Vars(r)["id"])
-	b, err := api.laundry.GetBooker(bookerId)
+	b, err := laundry.GetBooker(bookerId)
 	if err != nil {
-		w.WriteHeader(err.(*errors.LaundryError).Status)
-		w.Write(err.(*errors.LaundryError).AsJSON())
+		renderError(err, w)
 		return
 	}
 
-	if err = api.laundry.RemoveBooker(b); err != nil {
-		w.WriteHeader(err.(*errors.LaundryError).Status)
-		w.Write(err.(*errors.LaundryError).AsJSON())
+	if err = laundry.RemoveBooker(b); err != nil {
+		renderError(err, w)
 		return
 	}
 
@@ -124,17 +106,15 @@ func (api *LaundryAPI) RemoveBooker(w http.ResponseWriter, r *http.Request) {
 
 func (api *LaundryAPI) GetBookerBookings(w http.ResponseWriter, r *http.Request) {
 	bookerId, _ := strconv.Atoi(mux.Vars(r)["id"])
-	b, err := api.laundry.GetBooker(bookerId)
+	b, err := laundry.GetBooker(bookerId)
 	if err != nil {
-		w.WriteHeader(err.(*errors.LaundryError).Status)
-		w.Write(err.(*errors.LaundryError).AsJSON())
+		renderError(err, w)
 		return
 	}
 
-	bookings, err := api.laundry.GetBookerBookings(b)
+	bookings, err := laundry.GetBookerBookings(b)
 	if err != nil {
-		w.WriteHeader(err.(*errors.LaundryError).Status)
-		w.Write(err.(*errors.LaundryError).AsJSON())
+		renderError(err, w)
 		return
 	}
 
@@ -143,7 +123,7 @@ func (api *LaundryAPI) GetBookerBookings(w http.ResponseWriter, r *http.Request)
 }
 
 func (api *LaundryAPI) GetMachines(w http.ResponseWriter, r *http.Request) {
-	m, _ := api.laundry.GetMachines()
+	m, _ := laundry.GetMachines()
 
 	jb, _ := json.Marshal(m)
 	w.Write(jb)
@@ -152,23 +132,20 @@ func (api *LaundryAPI) GetMachines(w http.ResponseWriter, r *http.Request) {
 
 func (api *LaundryAPI) AddMachine(w http.ResponseWriter, r *http.Request) {
 	var inRequest laundry.Machine
-	if err := api.getJSONBody(&inRequest, r.Body); err != nil {
-		w.WriteHeader(err.(*errors.LaundryError).Status)
-		w.Write(err.(*errors.LaundryError).AsJSON())
+	if err := getJSONBody(&inRequest, r.Body); err != nil {
+		renderError(err, w)
 		return
 	}
 
 	if inRequest.Info == "" {
 		err := errors.New("Missing info in request").WithStatus(http.StatusBadRequest)
-		w.WriteHeader(err.Status)
-		w.Write(err.AsJSON())
+		renderError(err, w)
 		return
 	}
 
-	m, err := api.laundry.AddMachine(&inRequest)
+	m, err := laundry.AddMachine(&inRequest)
 	if err != nil {
-		w.WriteHeader(err.(*errors.LaundryError).Status)
-		w.Write(err.(*errors.LaundryError).AsJSON())
+		renderError(err, w)
 		return
 	}
 
@@ -179,10 +156,10 @@ func (api *LaundryAPI) AddMachine(w http.ResponseWriter, r *http.Request) {
 
 func (api *LaundryAPI) GetMachine(w http.ResponseWriter, r *http.Request) {
 	machineId, _ := strconv.Atoi(mux.Vars(r)["id"])
-	m, err := api.laundry.GetMachine(machineId)
+
+	m, err := laundry.GetMachine(machineId)
 	if err != nil {
-		w.WriteHeader(err.(*errors.LaundryError).Status)
-		w.Write(err.(*errors.LaundryError).AsJSON())
+		renderError(err, w)
 		return
 	}
 
@@ -192,17 +169,15 @@ func (api *LaundryAPI) GetMachine(w http.ResponseWriter, r *http.Request) {
 
 func (api *LaundryAPI) UpdateMachine(w http.ResponseWriter, r *http.Request) {
 	machineId, _ := strconv.Atoi(mux.Vars(r)["id"])
-	m, err := api.laundry.GetMachine(machineId)
+	m, err := laundry.GetMachine(machineId)
 	if err != nil {
-		w.WriteHeader(err.(*errors.LaundryError).Status)
-		w.Write(err.(*errors.LaundryError).AsJSON())
+		renderError(err, w)
 		return
 	}
 
 	var inRequest laundry.Machine
-	if err := api.getJSONBody(&inRequest, r.Body); err != nil {
-		w.WriteHeader(err.(*errors.LaundryError).Status)
-		w.Write(err.(*errors.LaundryError).AsJSON())
+	if err := getJSONBody(&inRequest, r.Body); err != nil {
+		renderError(err, w)
 		return
 	}
 
@@ -210,18 +185,16 @@ func (api *LaundryAPI) UpdateMachine(w http.ResponseWriter, r *http.Request) {
 
 	if inRequest.Info == "" {
 		err := errors.New("Missing field info").WithStatus(http.StatusBadRequest)
-		w.WriteHeader(err.Status)
-		w.Write(err.AsJSON())
+		renderError(err, w)
 		return
 	}
 
 	m.Info = inRequest.Info
 	m.Working = inRequest.Working
 
-	m, err = api.laundry.UpdateMachine(m)
+	m, err = laundry.UpdateMachine(m)
 	if err != nil {
-		w.WriteHeader(err.(*errors.LaundryError).Status)
-		w.Write(err.(*errors.LaundryError).AsJSON())
+		renderError(err, w)
 		return
 	}
 
@@ -231,16 +204,14 @@ func (api *LaundryAPI) UpdateMachine(w http.ResponseWriter, r *http.Request) {
 
 func (api *LaundryAPI) RemoveMachine(w http.ResponseWriter, r *http.Request) {
 	machineId, _ := strconv.Atoi(mux.Vars(r)["id"])
-	m, err := api.laundry.GetMachine(machineId)
+	m, err := laundry.GetMachine(machineId)
 	if err != nil {
-		w.WriteHeader(err.(*errors.LaundryError).Status)
-		w.Write(err.(*errors.LaundryError).AsJSON())
+		renderError(err, w)
 		return
 	}
 
-	if err = api.laundry.RemoveMachine(m); err != nil {
-		w.WriteHeader(err.(*errors.LaundryError).Status)
-		w.Write(err.(*errors.LaundryError).AsJSON())
+	if err = laundry.RemoveMachine(m); err != nil {
+		renderError(err, w)
 		return
 	}
 
@@ -251,10 +222,9 @@ func (api *LaundryAPI) RemoveMachine(w http.ResponseWriter, r *http.Request) {
 }
 
 func (api *LaundryAPI) GetSlots(w http.ResponseWriter, r *http.Request) {
-	s, err := api.laundry.GetSlots()
+	s, err := laundry.GetSlots()
 	if err != nil {
-		w.WriteHeader(err.(*errors.LaundryError).Status)
-		w.Write(err.(*errors.LaundryError).AsJSON())
+		renderError(err, w)
 		return
 	}
 
@@ -293,10 +263,9 @@ func (api *LaundryAPI) GetMonthSchedule(w http.ResponseWriter, r *http.Request) 
 	start, _ := mux.Vars(r)["start"]
 	end, _ := mux.Vars(r)["end"]
 
-	s, err := api.laundry.GetIntervalSchedule(start, end)
+	s, err := laundry.GetIntervalSchedule(start, end)
 	if err != nil {
-		w.WriteHeader(err.(*errors.LaundryError).Status)
-		w.Write(err.(*errors.LaundryError).AsJSON())
+		renderError(err, w)
 		return
 	}
 
@@ -304,12 +273,20 @@ func (api *LaundryAPI) GetMonthSchedule(w http.ResponseWriter, r *http.Request) 
 	w.Write(jb)
 }
 
-func (api *LaundryAPI) getJSONBody(i interface{}, b io.ReadCloser) error {
+func getJSONBody(i interface{}, b io.ReadCloser) *errors.LaundryError {
+	defer b.Close()
+
 	decoder := json.NewDecoder(b)
 
 	if err := decoder.Decode(i); err != nil {
-		return errors.New(err).WithStatus(400)
+		return errors.New(err).Add("Could not marshal JSON from body").WithStatus(http.StatusBadRequest)
 	}
 
 	return nil
+}
+
+func renderError(err *errors.LaundryError, w http.ResponseWriter) {
+	w.WriteHeader(err.Status)
+	w.Write(err.AsJSON())
+
 }

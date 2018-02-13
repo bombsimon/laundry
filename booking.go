@@ -3,10 +3,12 @@ package laundry
 import (
 	"database/sql"
 	"fmt"
+	"net/http"
 	"time"
 
 	"github.com/bombsimon/laundry/database"
 	"github.com/bombsimon/laundry/errors"
+	"github.com/bombsimon/laundry/log"
 	"github.com/jmoiron/sqlx"
 )
 
@@ -48,7 +50,7 @@ type BookerBookings struct {
 
 // GetBooker will return a booker based on an id. If the booker is not found
 // or an error fetching the booker occurs, an error will be returned.
-func (l *Laundry) GetBooker(id int) (*Booker, error) {
+func GetBooker(id int) (*Booker, *errors.LaundryError) {
 	db := database.GetConnection()
 
 	sqlStmt := `SELECT * FROM booker WHERE id = ?`
@@ -57,16 +59,16 @@ func (l *Laundry) GetBooker(id int) (*Booker, error) {
 	defer stmt.Close()
 
 	if err != nil {
-		l.Logger.Errorf("Could not prepare statement: %s", err)
+		log.GetLogger().Errorf("Could not prepare statement: %s", err)
 		return nil, errors.New(err)
 	}
 
 	var b Booker
 	if err = stmt.QueryRowx(id).StructScan(&b); err == sql.ErrNoRows {
-		l.Logger.Warnf("Booker with ID %d not found", id)
+		log.GetLogger().Warnf("Booker with ID %d not found", id)
 		return nil, errors.New(fmt.Sprintf("Booker with id %d not found", id)).WithStatus(404)
 	} else if err != nil {
-		l.Logger.Errorf("Could not get row: %s", err)
+		log.GetLogger().Errorf("Could not get row: %s", err)
 		return nil, errors.New(err)
 	}
 
@@ -74,7 +76,7 @@ func (l *Laundry) GetBooker(id int) (*Booker, error) {
 }
 
 // GetBookers will return a list of all bookers available
-func (l *Laundry) GetBookers() ([]Booker, error) {
+func GetBookers() ([]Booker, *errors.LaundryError) {
 	db := database.GetConnection()
 
 	sqlStmt := `SELECT * FROM booker`
@@ -83,7 +85,7 @@ func (l *Laundry) GetBookers() ([]Booker, error) {
 
 	rows, err := db.Queryx(sqlStmt)
 	if err != nil {
-		l.Logger.Errorf("Could not get bookers")
+		log.GetLogger().Errorf("Could not get bookers")
 		return bookers, errors.New(err)
 	}
 
@@ -92,8 +94,8 @@ func (l *Laundry) GetBookers() ([]Booker, error) {
 	for rows.Next() {
 		var b Booker
 		if err := rows.StructScan(&b); err != nil {
-			l.Logger.Errorf("Could not scan row: %s", err)
-			return bookers, err
+			log.GetLogger().Errorf("Could not scan row: %s", err)
+			return bookers, errors.New(err)
 		}
 
 		bookers = append(bookers, b)
@@ -105,7 +107,11 @@ func (l *Laundry) GetBookers() ([]Booker, error) {
 // AddBooker will take a Booker strucutre and add it to the database.
 // If the Booker is an existing Booker (or has an id), the id will be
 // omitted and a possible copy of the booker will be created.
-func (l *Laundry) AddBooker(b *Booker) (*Booker, error) {
+func AddBooker(b *Booker) (*Booker, *errors.LaundryError) {
+	if b.Identifier == "" {
+		return nil, errors.New("Missing identifier in request").WithStatus(http.StatusBadRequest)
+	}
+
 	db := database.GetConnection()
 
 	sqlStmt := `
@@ -118,13 +124,13 @@ func (l *Laundry) AddBooker(b *Booker) (*Booker, error) {
 	defer stmt.Close()
 
 	if err != nil {
-		l.Logger.Errorf("Could not create booker: %s", err)
-		return nil, err
+		log.GetLogger().Errorf("Could not create booker: %s", err)
+		return nil, errors.New(err)
 	}
 
 	if _, err = stmt.Exec(b.Identifier, b.Name, b.Email, b.Phone, b.Pin); err != nil {
-		l.Logger.Errorf("Could not create booker: %s", err)
-		return nil, err
+		log.GetLogger().Errorf("Could not create booker: %s", err)
+		return nil, errors.New(err)
 	}
 
 	return b, nil
@@ -132,7 +138,15 @@ func (l *Laundry) AddBooker(b *Booker) (*Booker, error) {
 
 // UpdateBooker will take a Booker and update the row with corresponding
 // id with the data in the Booker object.
-func (l *Laundry) UpdateBooker(b *Booker) (*Booker, error) {
+func UpdateBooker(bookerId int, ub *Booker) (*Booker, *errors.LaundryError) {
+	b, berr := GetBooker(bookerId)
+	if berr != nil {
+		return nil, berr
+	}
+
+	b.Phone = ub.Phone
+	b.Email = ub.Email
+
 	db := database.GetConnection()
 
 	sqlStmt := `
@@ -150,13 +164,13 @@ func (l *Laundry) UpdateBooker(b *Booker) (*Booker, error) {
 
 	stmt, err := db.Preparex(sqlStmt)
 	if err != nil {
-		l.Logger.Warnf("Could not prepare statement: %s", err)
-		return nil, err
+		log.GetLogger().Warnf("Could not prepare statement: %s", err)
+		return nil, errors.New(err)
 	}
 
 	if _, err = stmt.Exec(b.Identifier, b.Name, b.Email, b.Phone, b.Pin, b.Id); err != nil {
-		l.Logger.Warnf("Could not update booker with ID %d: %s", b.Id, err)
-		return nil, err
+		log.GetLogger().Warnf("Could not update booker with ID %d: %s", b.Id, err)
+		return nil, errors.New(err)
 	}
 
 	return b, nil
@@ -165,7 +179,7 @@ func (l *Laundry) UpdateBooker(b *Booker) (*Booker, error) {
 // RemoveBooker will take a Booker and remove the row with corresponding
 // id in the database. A remove will cascade and remove belonging bookings
 // and notifications.
-func (l *Laundry) RemoveBooker(b *Booker) error {
+func RemoveBooker(b *Booker) *errors.LaundryError {
 	db := database.GetConnection()
 
 	sqlStmt := `DELETE FROM booker WHERE id = ?`
@@ -175,20 +189,20 @@ func (l *Laundry) RemoveBooker(b *Booker) error {
 	defer stmt.Close()
 
 	if err != nil {
-		l.Logger.Errorf("Could not prepare statement: %s", err)
+		log.GetLogger().Errorf("Could not prepare statement: %s", err)
 		return errors.New("Could not prepare statement").Add("Could not remove booker")
 	}
 
 	if _, err := stmt.Exec(b.Id); err != nil {
-		l.Logger.Errorf("Could note remove booker")
+		log.GetLogger().Errorf("Could note remove booker")
 		return errors.New(err).Add("Could not remove booker")
 	}
 
 	return nil
 }
 
-// ParseBookings will take an *sql.Rows and parse to a list of BookerBookings
-func (l *Laundry) ParseBookings(rows *sqlx.Rows) (*[]BookerBookings, error) {
+// parseBookings will take an *sql.Rows and parse to a list of BookerBookings
+func parseBookings(rows *sqlx.Rows) (*[]BookerBookings, *errors.LaundryError) {
 	defer rows.Close()
 
 	var bookings = make(map[Bookings]BookerBookings)
@@ -197,7 +211,7 @@ func (l *Laundry) ParseBookings(rows *sqlx.Rows) (*[]BookerBookings, error) {
 	for rows.Next() {
 		var bl = new(BookerBookingsRow)
 		if err := rows.StructScan(bl); err != nil {
-			l.Logger.Warnf("Could not gett bookings: ", err)
+			log.GetLogger().Warnf("Could not gett bookings: ", err)
 			return nil, errors.New(err)
 		}
 
@@ -241,7 +255,7 @@ func (l *Laundry) ParseBookings(rows *sqlx.Rows) (*[]BookerBookings, error) {
 // GetBookerBookings will take a Booker and return a set of BookerBookings
 // for that Booker. The bookings returned will always be future bookings and
 // not from the past.
-func (l *Laundry) GetBookerBookings(b *Booker) (*[]BookerBookings, error) {
+func GetBookerBookings(b *Booker) (*[]BookerBookings, *errors.LaundryError) {
 	db := database.GetConnection()
 
 	sqlStmt := `
@@ -268,30 +282,30 @@ func (l *Laundry) GetBookerBookings(b *Booker) (*[]BookerBookings, error) {
 
 	stmt, err := db.Preparex(sqlStmt)
 	if err != nil {
-		l.Logger.Warnf("Could not prepare statement: %s", err)
+		log.GetLogger().Warnf("Could not prepare statement: %s", err)
 		return nil, errors.New(err)
 	}
 
 	rows, err := stmt.Queryx(b.Id)
 	if err != nil {
-		l.Logger.Errorf("Could not get bookings: %s", err)
+		log.GetLogger().Errorf("Could not get bookings: %s", err)
 		return nil, errors.New(err)
 	}
 
-	result, err := l.ParseBookings(rows)
+	result, err := parseBookings(rows)
 	if err != nil {
-		return nil, err
+		return nil, errors.New(err)
 	}
 
 	return result, nil
 }
 
 // GetBookingsInterval will return a list of BookerBookings between two given dates.
-func (l *Laundry) GetBookingsInterval(start, end string) (*[]BookerBookings, error) {
+func GetBookingsInterval(start, end string) (*[]BookerBookings, *errors.LaundryError) {
 	db := database.GetConnection()
 	sTime, eTime, err := dateIntervals(start, end)
 	if err != nil {
-		return nil, err
+		return nil, errors.New(err)
 	}
 
 	sqlStmt := `
@@ -318,19 +332,19 @@ func (l *Laundry) GetBookingsInterval(start, end string) (*[]BookerBookings, err
 
 	stmt, err := db.Preparex(sqlStmt)
 	if err != nil {
-		l.Logger.Warnf("Could not prepare statement: %s", err)
+		log.GetLogger().Warnf("Could not prepare statement: %s", err)
 		return nil, errors.New(err)
 	}
 
 	rows, err := stmt.Queryx(sTime.String(), eTime.String())
 	if err != nil {
-		l.Logger.Errorf("Could not get bookings: %s", err)
+		log.GetLogger().Errorf("Could not get bookings: %s", err)
 		return nil, errors.New(err)
 	}
 
-	result, err := l.ParseBookings(rows)
+	result, err := parseBookings(rows)
 	if err != nil {
-		return nil, err
+		return nil, errors.New(err)
 	}
 
 	return result, nil

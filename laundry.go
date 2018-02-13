@@ -17,21 +17,18 @@ RESTful API to use in combination with a GUI or front end service.
 package laundry
 
 import (
-	"os"
 	"time"
 
 	"github.com/bombsimon/laundry/config"
 	"github.com/bombsimon/laundry/database"
 	"github.com/bombsimon/laundry/errors"
 	_ "github.com/go-sql-driver/mysql"
-	log "github.com/sirupsen/logrus"
 )
 
 // Laundry represents a laundry service with a database handler, a logger
 // and configuration.
 type Laundry struct {
-	Logger *log.Entry
-	Config *config.Configuration
+	version string
 }
 
 // New will take a string with a path to the configuration file and setup a
@@ -40,27 +37,10 @@ type Laundry struct {
 // There are two environment variables to use to override the configuration file:
 //  LAUNDRY_DSN         - DSN to use when connecting to database
 //  LAUNDRY_HTTP_LISTEN - The host/port to listen on when running the API
-func New(configFile string) *Laundry {
-	log.SetFormatter(&log.JSONFormatter{})
-	log.SetOutput(os.Stdout)
-	logger := log.WithFields(log.Fields{})
-
-	conf, err := config.New(configFile)
-	if err != nil {
-		logger.Warnf("Configuration file missing - trying to proceed with unknown result")
-		conf = &config.Configuration{}
-	}
-
+func New(conf *config.Configuration) *Laundry {
 	database.SetupConnection(conf.Database)
 
-	if os.Getenv("LAUNDRY_HTTP_LISTEN") != "" {
-		conf.HTTP.Listen = os.Getenv("LAUNDRY_HTTP_LISTEN")
-	}
-
-	l := Laundry{
-		Logger: logger,
-		Config: conf,
-	}
+	l := Laundry{"v1"}
 
 	return &l
 }

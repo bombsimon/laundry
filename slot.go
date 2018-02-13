@@ -5,6 +5,7 @@ import (
 
 	"github.com/bombsimon/laundry/database"
 	"github.com/bombsimon/laundry/errors"
+	"github.com/bombsimon/laundry/log"
 	_ "github.com/go-sql-driver/mysql"
 )
 
@@ -31,7 +32,7 @@ type SlotWithBooker struct {
 }
 
 // GetSlots will return a list of all slots and it's machines
-func (l *Laundry) GetSlots() ([]Slot, error) {
+func GetSlots() ([]Slot, *errors.LaundryError) {
 	var slots []Slot
 
 	db := database.GetConnection()
@@ -41,7 +42,7 @@ func (l *Laundry) GetSlots() ([]Slot, error) {
 
 	rows, err := db.Queryx(slotSql)
 	if err != nil {
-		l.Logger.Errorf("Could not get slots: %s", err)
+		log.GetLogger().Errorf("Could not get slots: %s", err)
 		return slots, errors.New(err)
 	}
 
@@ -50,13 +51,13 @@ func (l *Laundry) GetSlots() ([]Slot, error) {
 	for rows.Next() {
 		var s Slot
 		if err := rows.StructScan(&s); err != nil {
-			l.Logger.Errorf("Could not fetch row: %s", err)
+			log.GetLogger().Errorf("Could not fetch row: %s", err)
 			return slots, errors.New(err)
 		}
 
 		mRows, err := db.Queryx(machineSql, s.Id)
 		if err != nil {
-			l.Logger.Errorf("Could not get machines: %s", err)
+			log.GetLogger().Errorf("Could not get machines: %s", err)
 			return slots, errors.New(err)
 		}
 
@@ -65,7 +66,7 @@ func (l *Laundry) GetSlots() ([]Slot, error) {
 		for mRows.Next() {
 			var m Machine
 			if err := mRows.StructScan(&m); err != nil {
-				l.Logger.Errorf("Could not fetch row: %s", err)
+				log.GetLogger().Errorf("Could not fetch row: %s", err)
 				return slots, errors.New(err)
 			}
 
@@ -81,14 +82,14 @@ func (l *Laundry) GetSlots() ([]Slot, error) {
 // GetIntervalSchedule will return a schedule between a given start- and end time.
 // A map for each day will be returned holding a list of slots and possible bookers
 // for the given slot.
-func (l *Laundry) GetIntervalSchedule(start, end string) (map[time.Time][]SlotWithBooker, error) {
+func GetIntervalSchedule(start, end string) (map[time.Time][]SlotWithBooker, *errors.LaundryError) {
 	sTime, eTime, err := dateIntervals(start, end)
 	if err != nil {
-		return nil, err
+		return nil, errors.New(err)
 	}
 
-	slots, _ := l.GetSlots()
-	bookings, _ := l.GetBookingsInterval(start, end)
+	slots, _ := GetSlots()
+	bookings, _ := GetBookingsInterval(start, end)
 
 	var month = make(map[time.Time][]SlotWithBooker)
 

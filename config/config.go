@@ -3,10 +3,28 @@ package config
 import (
 	"io/ioutil"
 	"net/http"
+	"os"
 
 	"github.com/bombsimon/laundry/errors"
 	yaml "gopkg.in/yaml.v2"
 )
+
+var (
+	configuration *Configuration
+)
+
+func GetConfig() *Configuration {
+	if configuration == nil {
+		c, err := New("")
+		if err != nil {
+			panic("Config not setup and cannot be setup automatically")
+		}
+
+		configuration = c
+	}
+
+	return configuration
+}
 
 // Configuration represents the full configuration for the laundry service
 // and the laundry RESTful API
@@ -63,5 +81,13 @@ func New(configFile string) (*Configuration, error) {
 		return nil, errors.New(err).WithStatus(http.StatusInternalServerError)
 	}
 
+	readEnvironment(&c)
+
 	return &c, nil
+}
+
+func readEnvironment(c *Configuration) {
+	if os.Getenv("LAUNDRY_HTTP_LISTEN") != "" {
+		c.HTTP.Listen = os.Getenv("LAUNDRY_HTTP_LISTEN")
+	}
 }

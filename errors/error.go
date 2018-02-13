@@ -28,6 +28,7 @@ func New(e interface{}) *LaundryError {
 		le.Reasons = []string{v}
 	case error:
 		le.Reasons = []string{v.Error()}
+		le.Origin = v
 	}
 
 	return &le

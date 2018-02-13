@@ -6,6 +6,8 @@ import (
 
 	"github.com/bombsimon/laundry"
 	"github.com/bombsimon/laundry/api"
+	"github.com/bombsimon/laundry/config"
+	"github.com/bombsimon/laundry/log"
 	"github.com/bombsimon/laundry/middleware"
 
 	"github.com/gorilla/handlers"
@@ -20,8 +22,14 @@ func main() {
 
 	kingpin.Parse()
 
-	service := laundry.New(*configFile)
-	api := api.New(service)
+	// Read configuration
+	cfg, err := config.New(*configFile)
+	if err != nil {
+		log.GetLogger().Fatal("Could read configuration")
+		os.Exit(255)
+	}
+
+	api := api.New(laundry.New(cfg))
 
 	r := mux.NewRouter()
 	v1 := r.PathPrefix("/v1").Subrouter()
@@ -62,10 +70,10 @@ func main() {
 	// Notificationos
 
 	loggedRouter := handlers.LoggingHandler(os.Stdout, r)
-	service.Logger.Infof("Serving up at %s...", service.Config.HTTP.Listen)
+	log.GetLogger().Infof("Serving up at %s...", cfg.HTTP.Listen)
 
 	http.ListenAndServe(
-		service.Config.HTTP.Listen,
+		cfg.HTTP.Listen,
 		middleware.Adapt(
 			loggedRouter,
 			middleware.Notify(),
