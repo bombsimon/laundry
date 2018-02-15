@@ -4,46 +4,15 @@ with a shared laundry room.
 
 The service includes interfaces for every part in the system and has an beloning
 RESTful API to use in combination with a GUI or front end service.
-
-	laundry := laundry.New("/path/to/service-config.yaml")
-	bookers, err := laundry.GetBookers()
-	if err != nil {
-		laundry.Logger.Warnf("Something is not right: %s", err)
-
-		// Appropriate HTTP status - err.(*laundry.LaundryError).Status()
-		// Marshal error to JSON   - err.(*laundry.LaundryError).AsJSON()
-	}
 */
 package laundry
 
 import (
 	"time"
 
-	"github.com/bombsimon/laundry/config"
-	"github.com/bombsimon/laundry/database"
 	"github.com/bombsimon/laundry/errors"
 	_ "github.com/go-sql-driver/mysql"
 )
-
-// Laundry represents a laundry service with a database handler, a logger
-// and configuration.
-type Laundry struct {
-	version string
-}
-
-// New will take a string with a path to the configuration file and setup a
-// new Laundry object. If the configuration file does not exist an object will
-// still be returned with empty configuration.
-// There are two environment variables to use to override the configuration file:
-//  LAUNDRY_DSN         - DSN to use when connecting to database
-//  LAUNDRY_HTTP_LISTEN - The host/port to listen on when running the API
-func New(conf *config.Configuration) *Laundry {
-	database.SetupConnection(conf.Database)
-
-	l := Laundry{"v1"}
-
-	return &l
-}
 
 // dateIntervals is a generic function that takes two strings, parses them
 // as time.Time objects and makes sure the start time does not occure after

@@ -18,7 +18,7 @@ type LaundryAPI struct {
 
 // New will create a new LaundryAPI and add the passed Laundry service
 // in the internal field laundry.
-func New(l *laundry.Laundry) *LaundryAPI {
+func New() *LaundryAPI {
 	api := LaundryAPI{"v1"}
 
 	return &api

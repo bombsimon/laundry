@@ -4,9 +4,9 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/bombsimon/laundry"
 	"github.com/bombsimon/laundry/api"
 	"github.com/bombsimon/laundry/config"
+	"github.com/bombsimon/laundry/database"
 	"github.com/bombsimon/laundry/log"
 	"github.com/bombsimon/laundry/middleware"
 
@@ -29,7 +29,8 @@ func main() {
 		os.Exit(255)
 	}
 
-	api := api.New(laundry.New(cfg))
+	database.SetupConnection(cfg.Database)
+	api := api.New()
 
 	r := mux.NewRouter()
 	v1 := r.PathPrefix("/v1").Subrouter()
