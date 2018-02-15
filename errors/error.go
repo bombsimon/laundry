@@ -52,6 +52,7 @@ func (e *LaundryError) WithStatus(i int) *LaundryError {
 // CasuedBy will add an error to the LaundryError to see what caused it
 func (e *LaundryError) CausedBy(err error) *LaundryError {
 	e.Origin = err
+	e.Reasons = append(e.Reasons, err.Error())
 
 	return e
 }
