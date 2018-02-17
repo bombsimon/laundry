@@ -4,16 +4,16 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"net/http"
 
 	"github.com/bombsimon/laundry/database"
 	"github.com/bombsimon/laundry/errors"
-	"github.com/bombsimon/laundry/log"
 	_ "github.com/go-sql-driver/mysql"
 )
 
 // Machine represents a laundry machine, holding an info line and a working state
 type Machine struct {
-	Id      int    `db:"id"      json:"-"`
+	Id      int    `db:"id"      json:"id"`
 	Info    string `db:"info"    json:"info"`
 	Working bool   `db:"working" json:"working"`
 }
@@ -57,14 +57,11 @@ func (m *Machine) UnmarshalJSON(data []byte) *errors.LaundryError {
 func GetMachines() ([]Machine, *errors.LaundryError) {
 	db := database.GetConnection()
 
-	sqlStmt := `SELECT * FROM machines`
-
 	var machines []Machine
 
-	rows, err := db.Queryx(sqlStmt)
+	rows, err := db.Queryx("SELECT * FROM machines")
 	if err != nil {
-		log.GetLogger().Errorf("Could not get bookers: %s", err)
-		return machines, errors.New(err)
+		return machines, errors.New("Could not get machines").CausedBy(err)
 	}
 
 	defer rows.Close()
@@ -72,8 +69,7 @@ func GetMachines() ([]Machine, *errors.LaundryError) {
 	for rows.Next() {
 		var m Machine
 		if err := rows.StructScan(&m); err != nil {
-			log.GetLogger().Errorf("Could not get machines: %s", err)
-			return machines, errors.New(err)
+			return machines, errors.New("Could not get machines").CausedBy(err)
 		}
 
 		machines = append(machines, m)
@@ -86,23 +82,12 @@ func GetMachines() ([]Machine, *errors.LaundryError) {
 // If an error occurs or the Machine does not exist, nil will be returned.
 func GetMachine(id int) (*Machine, *errors.LaundryError) {
 	db := database.GetConnection()
-	sqlStmt := `SELECT * FROM machines WHERE id = ?`
-	stmt, err := db.Preparex(sqlStmt)
-
-	defer stmt.Close()
-
-	if err != nil {
-		log.GetLogger().Errorf("Could not prepare statement: %s", err)
-		return nil, errors.New(err)
-	}
 
 	var m Machine
-	if err = stmt.QueryRowx(id).StructScan(&m); err == sql.ErrNoRows {
-		log.GetLogger().Warnf("Machine with ID %d not found", id)
-		return nil, errors.New(fmt.Sprintf("Machine with id %d not found", id)).WithStatus(404)
+	if err := db.QueryRowx("SELECT * FROM machines WHERE id = ?", id).StructScan(&m); err == sql.ErrNoRows {
+		return nil, errors.New("Machine with id %d not found", id).WithStatus(http.StatusNotFound)
 	} else if err != nil {
-		log.GetLogger().Errorf("Could not get row: %s", err)
-		return nil, errors.New(err)
+		return nil, errors.New("Could not get row").CausedBy(err)
 	}
 
 	return &m, nil
@@ -113,21 +98,9 @@ func GetMachine(id int) (*Machine, *errors.LaundryError) {
 func AddMachine(m *Machine) (*Machine, *errors.LaundryError) {
 	db := database.GetConnection()
 
-	sqlStmt := `INSERT INTO machines ( info, working ) VALUES ( ?, ? )`
-
-	stmt, err := db.Preparex(sqlStmt)
-
-	defer stmt.Close()
-
+	row, err := db.Exec("INSERET INTO machines ( info, working ) VALUES ( ?, ? )", m.Info, m.Working)
 	if err != nil {
-		log.GetLogger().Errorf("Could not prepare statement: %s", err)
-		return nil, errors.New(err)
-	}
-
-	row, err := stmt.Exec(m.Info, m.Working)
-	if err != nil {
-		log.GetLogger().Errorf("Could not create machine: %s", err)
-		return nil, errors.New(err)
+		return nil, errors.New("Could not create machine").CausedBy(err)
 	}
 
 	lastId, err := row.LastInsertId()
@@ -142,19 +115,23 @@ func AddMachine(m *Machine) (*Machine, *errors.LaundryError) {
 
 // UpdateMachine will take a machine and update the row with the corresponding id.
 // The passed Machine will be returned if successful.
-func UpdateMachine(m *Machine) (*Machine, *errors.LaundryError) {
+func UpdateMachine(id int, m *Machine) (*Machine, *errors.LaundryError) {
 	db := database.GetConnection()
-	sqlStmt := `UPDATE machines SET info = ?, working = ? WHERE id = ?`
 
-	stmt, err := db.Preparex(sqlStmt)
-	if err != nil {
-		log.GetLogger().Errorf("Could not prepare statement: %s", err)
-		return nil, errors.New(err)
+	machine, lErr := GetMachine(id)
+	if lErr != nil {
+		return nil, lErr
 	}
 
-	if _, err = stmt.Exec(m.Info, m.Working, m.Id); err != nil {
-		log.GetLogger().Errorf("Could not update machine with id %d: %s", m.Id, err)
-		return nil, errors.New(err)
+	if m.Info == "" {
+		return nil, errors.New("Missing field info").WithStatus(http.StatusBadRequest)
+	}
+
+	machine.Info = m.Info
+	machine.Working = m.Working
+
+	if _, err := db.Exec("UPDATE machines SET info = ?, working = ? WHERE id = ?", machine.Info, machine.Working, machine.Id); err != nil {
+		return nil, errors.New("Could not update machine with id %d", m.Id).CausedBy(err)
 	}
 
 	return m, nil
@@ -164,18 +141,20 @@ func UpdateMachine(m *Machine) (*Machine, *errors.LaundryError) {
 // to any slots in the booking system that will be removed aswell
 func RemoveMachine(m *Machine) *errors.LaundryError {
 	db := database.GetConnection()
-	sqlStmt := `DELETE FROM machines WHERE id = ?`
 
-	stmt, err := db.Preparex(sqlStmt)
-	if err != nil {
-		log.GetLogger().Errorf("Could not prepare statement: %s", err)
-		return errors.New(err)
-	}
-
-	if _, err := stmt.Exec(m.Id); err != nil {
-		log.GetLogger().Errorf("Could not remove machine with id %d: %s", m.Id, err)
-		return errors.New(err)
+	if _, err := db.Exec("DELETE FROM machines WHERE ID = ?", m.Id); err != nil {
+		return errors.New("Could not remove machine with id %d", m.Id).CausedBy(err)
 	}
 
 	return nil
+}
+
+// RemoveMachineById will remove a machine by sending the machine id.
+func RemoveMachineById(id int) *errors.LaundryError {
+	m, err := GetMachine(id)
+	if err != nil {
+		return err
+	}
+
+	return RemoveMachine(m)
 }

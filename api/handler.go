@@ -87,13 +87,8 @@ func (api *LaundryAPI) UpdateBooker(w http.ResponseWriter, r *http.Request) {
 
 func (api *LaundryAPI) RemoveBooker(w http.ResponseWriter, r *http.Request) {
 	bookerId, _ := strconv.Atoi(mux.Vars(r)["id"])
-	b, err := laundry.GetBooker(bookerId)
-	if err != nil {
-		renderError(err, w)
-		return
-	}
 
-	if err = laundry.RemoveBooker(b); err != nil {
+	if err := laundry.RemoveBookerById(bookerId); err != nil {
 		renderError(err, w)
 		return
 	}
@@ -106,13 +101,8 @@ func (api *LaundryAPI) RemoveBooker(w http.ResponseWriter, r *http.Request) {
 
 func (api *LaundryAPI) GetBookerBookings(w http.ResponseWriter, r *http.Request) {
 	bookerId, _ := strconv.Atoi(mux.Vars(r)["id"])
-	b, err := laundry.GetBooker(bookerId)
-	if err != nil {
-		renderError(err, w)
-		return
-	}
 
-	bookings, err := laundry.GetBookerBookings(b)
+	bookings, err := laundry.GetBookerBookingsById(bookerId)
 	if err != nil {
 		renderError(err, w)
 		return
@@ -169,11 +159,6 @@ func (api *LaundryAPI) GetMachine(w http.ResponseWriter, r *http.Request) {
 
 func (api *LaundryAPI) UpdateMachine(w http.ResponseWriter, r *http.Request) {
 	machineId, _ := strconv.Atoi(mux.Vars(r)["id"])
-	m, err := laundry.GetMachine(machineId)
-	if err != nil {
-		renderError(err, w)
-		return
-	}
 
 	var inRequest laundry.Machine
 	if err := getJSONBody(&inRequest, r.Body); err != nil {
@@ -181,18 +166,7 @@ func (api *LaundryAPI) UpdateMachine(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	defer r.Body.Close()
-
-	if inRequest.Info == "" {
-		err := errors.New("Missing field info").WithStatus(http.StatusBadRequest)
-		renderError(err, w)
-		return
-	}
-
-	m.Info = inRequest.Info
-	m.Working = inRequest.Working
-
-	m, err = laundry.UpdateMachine(m)
+	m, err := laundry.UpdateMachine(machineId, &inRequest)
 	if err != nil {
 		renderError(err, w)
 		return
@@ -204,13 +178,8 @@ func (api *LaundryAPI) UpdateMachine(w http.ResponseWriter, r *http.Request) {
 
 func (api *LaundryAPI) RemoveMachine(w http.ResponseWriter, r *http.Request) {
 	machineId, _ := strconv.Atoi(mux.Vars(r)["id"])
-	m, err := laundry.GetMachine(machineId)
-	if err != nil {
-		renderError(err, w)
-		return
-	}
 
-	if err = laundry.RemoveMachine(m); err != nil {
+	if err := laundry.RemoveMachineById(machineId); err != nil {
 		renderError(err, w)
 		return
 	}

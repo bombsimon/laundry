@@ -18,12 +18,31 @@ type LaundryError struct {
 
 // New will take a string or an error and create a LaundryError. The status code
 // will always default to http.StatusBadRequest
-func New(e interface{}) *LaundryError {
+// New supports formattet strings by using the first argument as formatter and
+// the rest as arugments
+// Example:
+//   err := New("Go %d errors: %s", 2, "Bad info")
+func New(e ...interface{}) *LaundryError {
 	le := LaundryError{
 		Status: http.StatusBadRequest,
 	}
 
-	switch v := e.(type) {
+	var err interface{}
+
+	switch {
+	case len(e) > 1:
+		format, ok := e[0].(string)
+		if !ok {
+			err = "Could not create error"
+			break
+		}
+
+		err = fmt.Sprintf(format, e[1:]...)
+	default:
+		err = e[0]
+	}
+
+	switch v := err.(type) {
 	case string:
 		le.Reasons = []string{v}
 	case error:

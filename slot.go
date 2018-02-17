@@ -11,18 +11,11 @@ import (
 
 // Slot represents an available slot and corresponding machines
 type Slot struct {
-	Id       int       `db:"id"         json:"-"`
+	Id       int       `db:"id"         json:"id"`
 	Weekday  int       `db:"week_day"   json:"week_day"`
 	Start    string    `db:"start_time" json:"start"`
 	End      string    `db:"end_time"   json:"end"`
 	Machines []Machine `                json:"machines"`
-}
-
-// SlotMachine represents the connection between one slot and one machine
-type SlotMachine struct {
-	Id        int `db:"id"          json:"-"`
-	SlotId    int `db:"id_slots"    json:"id_slot"`
-	MachineId int `db:"id_machines" json:"id_machine"`
 }
 
 // SlotWithBooker represents a slot and a possible booker for that slot
@@ -42,8 +35,7 @@ func GetSlots() ([]Slot, *errors.LaundryError) {
 
 	rows, err := db.Queryx(slotSql)
 	if err != nil {
-		log.GetLogger().Errorf("Could not get slots: %s", err)
-		return slots, errors.New(err)
+		return slots, errors.New("Could not get slots").CausedBy(err)
 	}
 
 	defer rows.Close()
@@ -55,6 +47,7 @@ func GetSlots() ([]Slot, *errors.LaundryError) {
 			return slots, errors.New(err)
 		}
 
+		// TODO: Don't query the database for each slot - this should be a JOIN
 		mRows, err := db.Queryx(machineSql, s.Id)
 		if err != nil {
 			log.GetLogger().Errorf("Could not get machines: %s", err)
@@ -88,32 +81,49 @@ func GetIntervalSchedule(start, end string) (map[time.Time][]SlotWithBooker, *er
 		return nil, errors.New(err)
 	}
 
+	// All slots in the system
 	slots, _ := GetSlots()
-	bookings, _ := GetBookingsInterval(start, end)
+
+	// All bookings in the system
+	bookings, _ := SearchBookings(BookingsSearch{*sTime, *eTime, nil})
 
 	var month = make(map[time.Time][]SlotWithBooker)
 
+	// Iterate from start date, add one day each iteration until we're at the end date
 	for d := *sTime; d != (*eTime).AddDate(0, 0, 1); d = d.AddDate(0, 0, 1) {
+		// SlotWithBooker is a slot in any given date which also includes a booker (if booker)
+		// Each day may have multiple slots with one booker each
 		var fs []SlotWithBooker
 
+		// Iterate over all slots for every given date
 		for _, s := range slots {
-			var full SlotWithBooker
-
-			// Check for slots this weekday
-			if d.Weekday() == time.Weekday(s.Weekday) {
-				full.Slot = s
-
-				for _, b := range *bookings {
-					// Check for bookings
-					if b.BookDate == d && s.Start == b.Start {
-						full.Booker = &b.Booker
-					}
-				}
-
-				fs = append(fs, full)
+			// Each slot is bound to a week day. If the slot isn't on the same week day
+			// as the current iteration, ignore it
+			if d.Weekday() != time.Weekday(s.Weekday) {
+				continue
 			}
+
+			// Add the current slot to the date we're at in our iterator
+
+			var full = SlotWithBooker{
+				Slot: s,
+			}
+
+			// Iterate over all bookings and see if any of them are at this current day
+			// with the same start time as the slot
+			// TODO: This is crap and high complexity - fix
+			for _, b := range *bookings {
+				// If the booking is on the same date as the iterator and the booking start time
+				// is the same as the slot - add it to the result
+				if b.BookDate == d && s.Start == b.Start {
+					full.Booker = &b.Booker
+				}
+			}
+
+			fs = append(fs, full)
 		}
 
+		// Add all found slots, with or without booker, to the current date
 		month[d] = fs
 	}
 
