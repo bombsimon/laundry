@@ -10,7 +10,6 @@ import (
 	"github.com/bombsimon/laundry/log"
 	"github.com/bombsimon/laundry/middleware"
 
-	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 	"gopkg.in/alecthomas/kingpin.v2"
 )
@@ -70,14 +69,14 @@ func main() {
 
 	// Notificationos
 
-	loggedRouter := handlers.LoggingHandler(os.Stdout, r)
 	log.GetLogger().Infof("Serving up at %s...", cfg.HTTP.Listen)
 
 	http.ListenAndServe(
 		cfg.HTTP.Listen,
 		middleware.Adapt(
-			loggedRouter,
+			r,
 			middleware.Notify(),
+			middleware.Logger(),
 		),
 	)
 }
