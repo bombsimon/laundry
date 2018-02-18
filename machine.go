@@ -98,6 +98,10 @@ func GetMachine(id int) (*Machine, *errors.LaundryError) {
 func AddMachine(m *Machine) (*Machine, *errors.LaundryError) {
 	db := database.GetConnection()
 
+	if m.Info == "" {
+		return nil, errors.New("Missing info in request")
+	}
+
 	row, err := db.Exec("INSERET INTO machines ( info, working ) VALUES ( ?, ? )", m.Info, m.Working)
 	if err != nil {
 		return nil, errors.New("Could not create machine").CausedBy(err)

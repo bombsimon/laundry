@@ -57,6 +57,7 @@ func (api *LaundryAPI) AddBooker(w http.ResponseWriter, r *http.Request) {
 
 func (api *LaundryAPI) GetBooker(w http.ResponseWriter, r *http.Request) {
 	bookerId, _ := strconv.Atoi(mux.Vars(r)["id"])
+
 	b, err := laundry.GetBooker(bookerId)
 	if err != nil {
 		renderError(err, w)
@@ -124,12 +125,6 @@ func (api *LaundryAPI) GetMachines(w http.ResponseWriter, r *http.Request) {
 func (api *LaundryAPI) AddMachine(w http.ResponseWriter, r *http.Request) {
 	var inRequest laundry.Machine
 	if err := getJSONBody(&inRequest, r.Body); err != nil {
-		renderError(err, w)
-		return
-	}
-
-	if inRequest.Info == "" {
-		err := errors.New("Missing info in request").WithStatus(http.StatusBadRequest)
 		renderError(err, w)
 		return
 	}
