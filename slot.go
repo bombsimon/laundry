@@ -1,6 +1,8 @@
 package laundry
 
 import (
+	"database/sql"
+	"net/http"
 	"time"
 
 	"github.com/bombsimon/laundry/database"
@@ -72,6 +74,106 @@ func GetSlots() ([]Slot, *errors.LaundryError) {
 	return slots, nil
 }
 
+// AddSlot will create a new slot
+func AddSlot(s *Slot) (*Slot, *errors.LaundryError) {
+	if err := validSlot(s); err != nil {
+		return nil, err
+	}
+
+	db := database.GetConnection()
+
+	query := "INSERT INTO slots (week_day, start_time, end_time) VALUES ( ?, ?, ? )"
+	row, err := db.Exec(query, s.Weekday, s.Start, s.End)
+	if err != nil {
+		return nil, errors.New("Could not create slot").CausedBy(err)
+	}
+
+	lastId, err := row.LastInsertId()
+	if err != nil {
+		return nil, errors.New(err)
+	}
+
+	s.Id = int(lastId)
+
+	return s, nil
+}
+
+// GetSlot will return one slot
+func GetSlot(slotId int) (*Slot, *errors.LaundryError) {
+	db := database.GetConnection()
+
+	var s Slot
+	if err := db.QueryRowx("SELECT * FROM slots WHERE id = ?", slotId).StructScan(&s); err == sql.ErrNoRows {
+		return nil, errors.New("Slot with id %d not found", slotId).WithStatus(http.StatusNotFound)
+	} else if err != nil {
+		return nil, errors.New("Could not get row").CausedBy(err)
+	}
+
+	return &s, nil
+}
+
+// UpdateSlot will update an existing slot
+func UpdateSlot(slotId int, s *Slot) (*Slot, *errors.LaundryError) {
+	if err := validSlot(s); err != nil {
+		return nil, err
+	}
+
+	slot, err := GetSlot(slotId)
+	if err != nil {
+		return nil, err
+	}
+
+	slot.Weekday = s.Weekday
+	slot.Start = s.Start
+	slot.End = s.End
+
+	db := database.GetConnection()
+
+	if _, err := db.Exec("UPDATE slots SET week_day = ?, start_time = ?, end_time = ? WHERE id = ?", slot.Weekday, slot.Start, slot.End, slot.Id); err != nil {
+		return nil, errors.New("Could not update slot with id %d", slot.Id).CausedBy(err)
+	}
+
+	return slot, nil
+}
+
+// RemoveSlot will remove an existing slot
+func RemoveSlot(s *Slot) *errors.LaundryError {
+	db := database.GetConnection()
+
+	if _, err := db.Exec("DELETE FROM slots WHERE id = ?", s.Id); err != nil {
+		return errors.New("Could not remove slot with id %d", s.Id).CausedBy(err)
+	}
+
+	return nil
+}
+
+// RemoveSlotById will remove a slot by a aslot id
+func RemoveSlotById(id int) *errors.LaundryError {
+	slot, err := GetSlot(id)
+	if err != nil {
+		return err
+	}
+
+	return RemoveSlot(slot)
+}
+
+func validSlot(s *Slot) *errors.LaundryError {
+	// Valid day provided
+	switch s.Weekday {
+	case 0, 1, 2, 3, 4, 5, 6:
+		// Valid day
+	default:
+		return errors.New("Invalid weekday").WithStatus(http.StatusBadRequest)
+	}
+
+	// Valid start- and end time provided
+	if _, _, err := timeIntervals(s.Start, s.End); err != nil {
+		return err
+	}
+
+	return nil
+}
+
 // GetIntervalSchedule will return a schedule between a given start- and end time.
 // A map for each day will be returned holding a list of slots and possible bookers
 // for the given slot.
@@ -85,7 +187,10 @@ func GetIntervalSchedule(start, end string) (map[time.Time][]SlotWithBooker, *er
 	slots, _ := GetSlots()
 
 	// All bookings in the system
-	bookings, _ := SearchBookings(BookingsSearch{*sTime, *eTime, nil})
+	bookings, sErr := SearchBookings(BookingsSearch{*sTime, *eTime, nil})
+	if sErr != nil {
+		return nil, sErr
+	}
 
 	var month = make(map[time.Time][]SlotWithBooker)
 
@@ -115,7 +220,7 @@ func GetIntervalSchedule(start, end string) (map[time.Time][]SlotWithBooker, *er
 			for _, b := range *bookings {
 				// If the booking is on the same date as the iterator and the booking start time
 				// is the same as the slot - add it to the result
-				if b.BookDate == d && s.Start == b.Start {
+				if b.BookDate == d && s.Start == b.Slot.Start {
 					full.Booker = &b.Booker
 				}
 			}

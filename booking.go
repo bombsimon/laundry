@@ -2,21 +2,13 @@ package laundry
 
 import (
 	"database/sql"
-	"encoding/json"
 	"net/http"
 	"time"
 
 	"github.com/bombsimon/laundry/database"
 	"github.com/bombsimon/laundry/errors"
-	"github.com/bombsimon/laundry/log"
 	"github.com/jmoiron/sqlx"
 )
-
-// NullString represents an embedded sql.NullString on which we
-// can implement a custom JSON marshaller
-type NullString struct {
-	sql.NullString
-}
 
 // BookingsSeach represents searchable booking parameters
 type BookingsSearch struct {
@@ -55,19 +47,9 @@ type BookerBookingsRow struct {
 // BookerBookings represents a booking including a Booker structure
 type BookerBookings struct {
 	BookDate time.Time `json:"date"`
-	Start    string    `json:"start"`
-	End      string    `json:"end"`
+	Slot     Slot      `json:"slot"`
 	Booker   Booker    `json:"booker"`
 	Machines []Machine `json:"machines"`
-}
-
-// MarshalJSON will make sure NullStrings are marshalled correct
-func (ns *NullString) MarshalJSON() ([]byte, error) {
-	if ns.Valid {
-		return json.Marshal(ns.String)
-	}
-
-	return []byte("null"), nil
 }
 
 // GetBooker will return a booker based on an id. If the booker is not found
@@ -278,11 +260,11 @@ func parseBookings(rows *sqlx.Rows) (*[]BookerBookings, *errors.LaundryError) {
 	for rows.Next() {
 		var bl = new(BookerBookingsRow)
 		if err := rows.StructScan(bl); err != nil {
-			log.GetLogger().Warnf("Could not gett bookings: ", err)
-			return nil, errors.New(err)
+			return nil, errors.New("Could not get bookings").CausedBy(err)
 		}
 
 		booker := Booker{
+			Id:         bl.Booker.Id,
 			Identifier: bl.Booker.Identifier,
 			Name:       bl.Booker.Name,
 			Email:      bl.Booker.Email,
@@ -295,11 +277,17 @@ func parseBookings(rows *sqlx.Rows) (*[]BookerBookings, *errors.LaundryError) {
 			Working: bl.Machine.Working,
 		}
 
+		slot := Slot{
+			Id:      bl.Slot.Id,
+			Weekday: bl.Slot.Weekday,
+			Start:   bl.Slot.Start,
+			End:     bl.Slot.End,
+		}
+
 		br := BookerBookings{
-			Booker:   booker,
 			BookDate: bl.Bookings.BookDate,
-			Start:    bl.Slot.Start,
-			End:      bl.Slot.End,
+			Booker:   booker,
+			Slot:     slot,
 		}
 
 		bookings[bl.Bookings] = br

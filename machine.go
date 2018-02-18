@@ -146,7 +146,7 @@ func UpdateMachine(id int, m *Machine) (*Machine, *errors.LaundryError) {
 func RemoveMachine(m *Machine) *errors.LaundryError {
 	db := database.GetConnection()
 
-	if _, err := db.Exec("DELETE FROM machines WHERE ID = ?", m.Id); err != nil {
+	if _, err := db.Exec("DELETE FROM machines WHERE id = ?", m.Id); err != nil {
 		return errors.New("Could not remove machine with id %d", m.Id).CausedBy(err)
 	}
 

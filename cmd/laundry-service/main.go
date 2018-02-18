@@ -65,7 +65,7 @@ func main() {
 	v1.HandleFunc("/bookings/{id:[0-9]+}/notifications", api.RemoveBooking).Name("get_booking_notifications").Methods("GET")
 
 	// Schedule
-	v1.HandleFunc(`/schedule/{start:\d{4}-\d{2}-\d{2}}/{end:\d{4}-\d{2}-\d{2}}`, api.GetMonthSchedule).Name("get_month_schedule").Methods("GET")
+	v1.HandleFunc(`/schedule/{start:\d{4}-\d{2}-\d{2}}/{end:\d{4}-\d{2}-\d{2}}`, api.GetSchedule).Name("get_month_schedule").Methods("GET")
 
 	// Notificationos
 

@@ -8,21 +8,53 @@ RESTful API to use in combination with a GUI or front end service.
 package laundry
 
 import (
+	"database/sql"
+	"encoding/json"
 	"time"
 
 	"github.com/bombsimon/laundry/errors"
 	_ "github.com/go-sql-driver/mysql"
 )
 
-// dateIntervals is a generic function that takes two strings, parses them
-// as time.Time objects and makes sure the start time does not occure after
-// the end time.
-func dateIntervals(start, end string) (*time.Time, *time.Time, error) {
-	sTime, _ := time.Parse("2006-01-02", start)
-	eTime, _ := time.Parse("2006-01-02", end)
+// NullString represents an embedded sql.NullString on which we
+// can implement a custom JSON marshaller
+type NullString struct {
+	sql.NullString
+}
 
-	if sTime.After(eTime) {
-		return nil, nil, errors.New("Start time cannot be after end time")
+// MarshalJSON will make sure NullStrings are marshalled correct
+func (ns *NullString) MarshalJSON() ([]byte, error) {
+	if ns.Valid {
+		return json.Marshal(ns.String)
+	}
+
+	return []byte("null"), nil
+}
+
+func dateIntervals(start, end string) (*time.Time, *time.Time, *errors.LaundryError) {
+	return interval("2006-01-02", start, end, true)
+}
+
+func timeIntervals(start, end string) (*time.Time, *time.Time, *errors.LaundryError) {
+	return interval("15:04:05", start, end, true)
+}
+
+func interval(format, start, end string, ordered bool) (*time.Time, *time.Time, *errors.LaundryError) {
+	sTime, err := time.Parse(format, start)
+	if err != nil {
+		return nil, nil, errors.New("Invalid start time").CausedBy(err)
+	}
+
+	eTime, err := time.Parse(format, end)
+	if err != nil {
+		return nil, nil, errors.New("Invalid end time").CausedBy(err)
+	}
+
+	// Check that start- and end time was sent in order
+	if ordered {
+		if sTime.After(eTime) {
+			return nil, nil, errors.New("Start time cannot be after end time")
+		}
 	}
 
 	return &sTime, &eTime, nil

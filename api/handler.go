@@ -198,15 +198,66 @@ func (api *LaundryAPI) GetSlots(w http.ResponseWriter, r *http.Request) {
 }
 
 func (api *LaundryAPI) AddSlot(w http.ResponseWriter, r *http.Request) {
+	var inRequest laundry.Slot
+	if err := getJSONBody(&inRequest, r.Body); err != nil {
+		renderError(err, w)
+		return
+	}
+
+	s, err := laundry.AddSlot(&inRequest)
+	if err != nil {
+		renderError(err, w)
+		return
+	}
+
+	jb, _ := json.Marshal(s)
+	w.Write(jb)
 }
 
 func (api *LaundryAPI) GetSlot(w http.ResponseWriter, r *http.Request) {
+	slotId, _ := strconv.Atoi(mux.Vars(r)["id"])
+
+	s, err := laundry.GetSlot(slotId)
+	if err != nil {
+		renderError(err, w)
+		return
+	}
+
+	jb, _ := json.Marshal(s)
+	w.Write(jb)
 }
 
 func (api *LaundryAPI) UpdateSlot(w http.ResponseWriter, r *http.Request) {
+	slotId, _ := strconv.Atoi(mux.Vars(r)["id"])
+
+	var inRequest laundry.Slot
+	if err := getJSONBody(&inRequest, r.Body); err != nil {
+		renderError(err, w)
+		return
+	}
+
+	s, err := laundry.UpdateSlot(slotId, &inRequest)
+	if err != nil {
+		renderError(err, w)
+		return
+	}
+
+	jb, _ := json.Marshal(s)
+	w.Write(jb)
 }
 
 func (api *LaundryAPI) RemoveSlot(w http.ResponseWriter, r *http.Request) {
+	slotId, _ := strconv.Atoi(mux.Vars(r)["id"])
+
+	if err := laundry.RemoveSlotById(slotId); err != nil {
+		renderError(err, w)
+		return
+	}
+
+	var empty = struct{}{}
+
+	jb, _ := json.Marshal(&empty)
+	w.Write(jb)
 }
 
 func (api *LaundryAPI) GetBookings(w http.ResponseWriter, r *http.Request) {
@@ -224,7 +275,7 @@ func (api *LaundryAPI) UpdateBooking(w http.ResponseWriter, r *http.Request) {
 func (api *LaundryAPI) RemoveBooking(w http.ResponseWriter, r *http.Request) {
 }
 
-func (api *LaundryAPI) GetMonthSchedule(w http.ResponseWriter, r *http.Request) {
+func (api *LaundryAPI) GetSchedule(w http.ResponseWriter, r *http.Request) {
 	start, _ := mux.Vars(r)["start"]
 	end, _ := mux.Vars(r)["end"]
 
