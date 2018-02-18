@@ -8,6 +8,7 @@ import (
 
 	"github.com/bombsimon/laundry"
 	"github.com/bombsimon/laundry/errors"
+	"github.com/bombsimon/laundry/middleware"
 	"github.com/gorilla/mux"
 )
 
@@ -258,4 +259,7 @@ func renderError(err *errors.LaundryError, w http.ResponseWriter) {
 	w.WriteHeader(err.Status)
 	w.Write(err.AsJSON())
 
+	if lrw, ok := w.(*middleware.LoggingResponseWriter); ok {
+		lrw.WriteError(err)
+	}
 }
