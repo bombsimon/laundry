@@ -17,7 +17,7 @@ services:
     network_mode: bridge
   db-service:
     container_name: laundry-db
-    image: mysql:latest
+    image: mysql:5.7
     ports:
       - "3401:3306"
     volumes:

@@ -1,23 +1,24 @@
 package laundry
 
 import (
-	"database/sql"
 	"net/http"
 	"time"
 
 	"github.com/bombsimon/laundry/database"
 	"github.com/bombsimon/laundry/errors"
 	"github.com/bombsimon/laundry/log"
-	_ "github.com/go-sql-driver/mysql"
+	// MySQL driver for goqu
+	goqu "gopkg.in/doug-martin/goqu.v4"
+	_ "gopkg.in/doug-martin/goqu.v4/adapters/mysql"
 )
 
 // Slot represents an available slot and corresponding machines
 type Slot struct {
-	Id       int       `db:"id"         json:"id"`
+	ID       int       `db:"id"         json:"id"`
 	Weekday  int       `db:"week_day"   json:"week_day"`
 	Start    string    `db:"start_time" json:"start"`
 	End      string    `db:"end_time"   json:"end"`
-	Machines []Machine `                json:"machines"`
+	Machines []Machine `db:"-"          json:"machines"`
 }
 
 // SlotWithBooker represents a slot and a possible booker for that slot
@@ -28,47 +29,30 @@ type SlotWithBooker struct {
 
 // GetSlots will return a list of all slots and it's machines
 func GetSlots() ([]Slot, *errors.LaundryError) {
+	db := database.GetGoqu()
 	var slots []Slot
 
-	db := database.GetConnection()
-	slotSql := `SELECT * FROM slots`
-	machineSql := ` SELECT m.* FROM machines AS m JOIN slots_machines AS sm
-		ON sm.id_machines = m.id WHERE sm.id_slots = ?`
-
-	rows, err := db.Queryx(slotSql)
-	if err != nil {
+	if err := db.From("slots").ScanStructs(&slots); err != nil {
 		return slots, errors.New("Could not get slots").CausedBy(err)
 	}
 
-	defer rows.Close()
+	for i, slot := range slots {
+		var machines []Machine
 
-	for rows.Next() {
-		var s Slot
-		if err := rows.StructScan(&s); err != nil {
-			log.GetLogger().Errorf("Could not fetch row: %s", err)
-			return slots, errors.New(err)
-		}
+		err := db.From("machines").
+			Select("machines.*").
+			LeftJoin(goqu.I("slots_machines"), goqu.On(goqu.I("slots_machines.id_machines").Eq(goqu.I("machines.id")))).
+			Where(
+				goqu.I("slots_machines.id_slots").Eq(slot.ID),
+			).ScanStructs(&machines)
 
-		// TODO: Don't query the database for each slot - this should be a JOIN
-		mRows, err := db.Queryx(machineSql, s.Id)
 		if err != nil {
 			log.GetLogger().Errorf("Could not get machines: %s", err)
 			return slots, errors.New(err)
 		}
 
-		defer mRows.Close()
+		slots[i].Machines = machines
 
-		for mRows.Next() {
-			var m Machine
-			if err := mRows.StructScan(&m); err != nil {
-				log.GetLogger().Errorf("Could not fetch row: %s", err)
-				return slots, errors.New(err)
-			}
-
-			s.Machines = append(s.Machines, m)
-		}
-
-		slots = append(slots, s)
 	}
 
 	return slots, nil
@@ -80,45 +64,56 @@ func AddSlot(s *Slot) (*Slot, *errors.LaundryError) {
 		return nil, err
 	}
 
-	db := database.GetConnection()
+	db := database.GetGoqu()
 
-	query := "INSERT INTO slots (week_day, start_time, end_time) VALUES ( ?, ?, ? )"
-	row, err := db.Exec(query, s.Weekday, s.Start, s.End)
+	insert := db.From("slots").Insert(goqu.Record{
+		"week_day":   s.Weekday,
+		"start_time": s.Start,
+		"end_time":   s.End,
+	})
+
+	row, err := insert.Exec()
 	if err != nil {
 		return nil, errors.New("Could not create slot").CausedBy(err)
 	}
 
-	lastId, err := row.LastInsertId()
+	lastID, err := row.LastInsertId()
 	if err != nil {
 		return nil, errors.New(err)
 	}
 
-	s.Id = int(lastId)
+	s.ID = int(lastID)
 
 	return s, nil
 }
 
 // GetSlot will return one slot
-func GetSlot(slotId int) (*Slot, *errors.LaundryError) {
-	db := database.GetConnection()
+func GetSlot(slotID int) (*Slot, *errors.LaundryError) {
+	db := database.GetGoqu()
 
 	var s Slot
-	if err := db.QueryRowx("SELECT * FROM slots WHERE id = ?", slotId).StructScan(&s); err == sql.ErrNoRows {
-		return nil, errors.New("Slot with id %d not found", slotId).WithStatus(http.StatusNotFound)
-	} else if err != nil {
+	found, err := db.From("slots").Where(goqu.Ex{
+		"id": slotID,
+	}).ScanStruct(&s)
+
+	if err != nil {
 		return nil, errors.New("Could not get row").CausedBy(err)
+	}
+
+	if !found {
+		return nil, errors.New("Slot with id %d not found", slotID).WithStatus(http.StatusNotFound)
 	}
 
 	return &s, nil
 }
 
 // UpdateSlot will update an existing slot
-func UpdateSlot(slotId int, s *Slot) (*Slot, *errors.LaundryError) {
+func UpdateSlot(slotID int, s *Slot) (*Slot, *errors.LaundryError) {
 	if err := validSlot(s); err != nil {
 		return nil, err
 	}
 
-	slot, err := GetSlot(slotId)
+	slot, err := GetSlot(slotID)
 	if err != nil {
 		return nil, err
 	}
@@ -127,10 +122,19 @@ func UpdateSlot(slotId int, s *Slot) (*Slot, *errors.LaundryError) {
 	slot.Start = s.Start
 	slot.End = s.End
 
-	db := database.GetConnection()
+	db := database.GetGoqu()
 
-	if _, err := db.Exec("UPDATE slots SET week_day = ?, start_time = ?, end_time = ? WHERE id = ?", slot.Weekday, slot.Start, slot.End, slot.Id); err != nil {
-		return nil, errors.New("Could not update slot with id %d", slot.Id).CausedBy(err)
+	update := db.From("slots").Where(goqu.Ex{
+		"id": slot.ID,
+	}).
+		Update(goqu.Record{
+			"week_day":   slot.Weekday,
+			"start_time": slot.Start,
+			"end_time":   slot.End,
+		})
+
+	if _, err := update.Exec(); err != nil {
+		return nil, errors.New("Could not update slot with id %d", slot.ID).CausedBy(err)
 	}
 
 	return slot, nil
@@ -138,17 +142,21 @@ func UpdateSlot(slotId int, s *Slot) (*Slot, *errors.LaundryError) {
 
 // RemoveSlot will remove an existing slot
 func RemoveSlot(s *Slot) *errors.LaundryError {
-	db := database.GetConnection()
+	db := database.GetGoqu()
 
-	if _, err := db.Exec("DELETE FROM slots WHERE id = ?", s.Id); err != nil {
-		return errors.New("Could not remove slot with id %d", s.Id).CausedBy(err)
+	delete := db.From("slots").Where(goqu.Ex{
+		"id": s.ID,
+	}).Delete()
+
+	if _, err := delete.Exec(); err != nil {
+		return errors.New("Could not remove slot with id %d", s.ID).CausedBy(err)
 	}
 
 	return nil
 }
 
-// RemoveSlotById will remove a slot by a aslot id
-func RemoveSlotById(id int) *errors.LaundryError {
+// RemoveSlotByID will remove a slot by a aslot id
+func RemoveSlotByID(id int) *errors.LaundryError {
 	slot, err := GetSlot(id)
 	if err != nil {
 		return err

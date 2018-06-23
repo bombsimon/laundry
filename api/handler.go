@@ -40,6 +40,7 @@ func (api *LaundryAPI) GetBookers(w http.ResponseWriter, r *http.Request) {
 // AddBooker is the HTTP handler to add a booker
 func (api *LaundryAPI) AddBooker(w http.ResponseWriter, r *http.Request) {
 	var inRequest laundry.Booker
+
 	if err := getJSONBody(&inRequest, r.Body); err != nil {
 		renderError(err, w)
 		return
@@ -90,7 +91,7 @@ func (api *LaundryAPI) UpdateBooker(w http.ResponseWriter, r *http.Request) {
 func (api *LaundryAPI) RemoveBooker(w http.ResponseWriter, r *http.Request) {
 	bookerId, _ := strconv.Atoi(mux.Vars(r)["id"])
 
-	if err := laundry.RemoveBookerById(bookerId); err != nil {
+	if err := laundry.RemoveBookerByID(bookerId); err != nil {
 		renderError(err, w)
 		return
 	}
@@ -104,7 +105,7 @@ func (api *LaundryAPI) RemoveBooker(w http.ResponseWriter, r *http.Request) {
 func (api *LaundryAPI) GetBookerBookings(w http.ResponseWriter, r *http.Request) {
 	bookerId, _ := strconv.Atoi(mux.Vars(r)["id"])
 
-	bookings, err := laundry.GetBookerBookingsById(bookerId)
+	bookings, err := laundry.GetBookerBookingsByID(bookerId)
 	if err != nil {
 		renderError(err, w)
 		return
@@ -175,7 +176,7 @@ func (api *LaundryAPI) UpdateMachine(w http.ResponseWriter, r *http.Request) {
 func (api *LaundryAPI) RemoveMachine(w http.ResponseWriter, r *http.Request) {
 	machineId, _ := strconv.Atoi(mux.Vars(r)["id"])
 
-	if err := laundry.RemoveMachineById(machineId); err != nil {
+	if err := laundry.RemoveMachineByID(machineId); err != nil {
 		renderError(err, w)
 		return
 	}
@@ -247,9 +248,9 @@ func (api *LaundryAPI) UpdateSlot(w http.ResponseWriter, r *http.Request) {
 }
 
 func (api *LaundryAPI) RemoveSlot(w http.ResponseWriter, r *http.Request) {
-	slotId, _ := strconv.Atoi(mux.Vars(r)["id"])
+	slotID, _ := strconv.Atoi(mux.Vars(r)["id"])
 
-	if err := laundry.RemoveSlotById(slotId); err != nil {
+	if err := laundry.RemoveSlotByID(slotID); err != nil {
 		renderError(err, w)
 		return
 	}
