@@ -31,6 +31,23 @@ func (ns *NullString) MarshalJSON() ([]byte, error) {
 	return []byte("null"), nil
 }
 
+// UnmarshalJSON will make sure NullStrings are marshalled correct
+func (ns *NullString) UnmarshalJSON(data []byte) error {
+	var b *string
+
+	if err := json.Unmarshal(data, &b); err != nil {
+		return errors.New(err)
+	}
+
+	if b == nil {
+		*ns = NullString{sql.NullString{String: "", Valid: false}}
+	}
+
+	*ns = NullString{sql.NullString{String: *b, Valid: true}}
+
+	return nil
+}
+
 func dateIntervals(start, end string) (*time.Time, *time.Time, *errors.LaundryError) {
 	return interval("2006-01-02", start, end, true)
 }

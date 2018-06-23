@@ -1,16 +1,18 @@
 package laundry
 
 import (
-	"database/sql"
 	"net/http"
 	"time"
 
 	"github.com/bombsimon/laundry/database"
 	"github.com/bombsimon/laundry/errors"
 	"github.com/jmoiron/sqlx"
+	"gopkg.in/doug-martin/goqu.v4"
+	// MySQL driver for goqu
+	_ "gopkg.in/doug-martin/goqu.v4/adapters/mysql"
 )
 
-// BookingsSeach represents searchable booking parameters
+// BookingsSearch represents searchable booking parameters
 type BookingsSearch struct {
 	Start  time.Time
 	End    time.Time
@@ -19,7 +21,7 @@ type BookingsSearch struct {
 
 // Booker represents a booker
 type Booker struct {
-	Id         int        `db:"id"         json:"id"`
+	ID         int        `db:"id"         json:"id"`
 	Identifier string     `db:"identifier" json:"identifier"` // Apartment number
 	Name       NullString `db:"name"       json:"name"`
 	Email      NullString `db:"email"      json:"email"`
@@ -29,10 +31,10 @@ type Booker struct {
 
 // Bookings represents a booking
 type Bookings struct {
-	Id       int       `db:"id"        json:"id"`
+	ID       int       `db:"id"        json:"id"`
 	BookDate time.Time `db:"book_date" json:"book_date"`
-	SlotId   int       `db:"id_slots"  json:"slot_id"`
-	BookerId int       `db:"id_booker" json:"booker_id"`
+	SlotID   int       `db:"id_slots"  json:"slot_id"`
+	BookerID int       `db:"id_booker" json:"booker_id"`
 }
 
 // BookerBookingsRow represents the database struct to use when fetching
@@ -55,13 +57,19 @@ type BookerBookings struct {
 // GetBooker will return a booker based on an id. If the booker is not found
 // or an error fetching the booker occurs, an error will be returned.
 func GetBooker(id int) (*Booker, *errors.LaundryError) {
-	db := database.GetConnection()
+	db := database.GetGoqu()
 
 	var b Booker
-	if err := db.QueryRowx("SELECT * FROM booker WHERE id = ?", id).StructScan(&b); err == sql.ErrNoRows {
-		return nil, errors.New("Booker with id %d not found", id).WithStatus(http.StatusNotFound)
-	} else if err != nil {
+	found, err := db.From("booker").Where(goqu.Ex{
+		"id": id,
+	}).ScanStruct(&b)
+
+	if err != nil {
 		return nil, errors.New("Could not get row").CausedBy(err)
+	}
+
+	if !found {
+		return nil, errors.New("Booker with id %d not found", id).WithStatus(http.StatusNotFound)
 	}
 
 	return &b, nil
@@ -69,23 +77,11 @@ func GetBooker(id int) (*Booker, *errors.LaundryError) {
 
 // GetBookers will return a list of all bookers available
 func GetBookers() ([]Booker, *errors.LaundryError) {
-	db := database.GetConnection()
+	db := database.GetGoqu()
 
 	var bookers []Booker
-	rows, err := db.Queryx("SELECT * FROM booker")
-	if err != nil {
+	if err := db.From("booker").ScanStructs(&bookers); err != nil {
 		return bookers, errors.New("Could not get bookers").CausedBy(err)
-	}
-
-	defer rows.Close()
-
-	for rows.Next() {
-		var b Booker
-		if err := rows.StructScan(&b); err != nil {
-			return bookers, errors.New("Could not scan row").CausedBy(err)
-		}
-
-		bookers = append(bookers, b)
 	}
 
 	return bookers, nil
@@ -99,53 +95,59 @@ func AddBooker(b *Booker) (*Booker, *errors.LaundryError) {
 		return nil, errors.New("Missing identifier in request").WithStatus(http.StatusBadRequest)
 	}
 
-	db := database.GetConnection()
+	db := database.GetGoqu()
 
-	query := "INSERT INTO booker (identifier, name, email, phone, pin) VALUES (?, ?, ?, ?, ?)"
+	insert := db.From("booker").Insert(goqu.Record{
+		"identifier": b.Identifier,
+		"name":       b.Name,
+		"email":      b.Email,
+		"phone":      b.Phone,
+		"pin":        b.Pin,
+	})
 
-	row, err := db.Exec(query, b.Identifier, b.Name, b.Email, b.Phone, b.Pin)
+	row, err := insert.Exec()
 	if err != nil {
 		return nil, errors.New("Could not create booker").CausedBy(err)
 	}
 
-	lastId, err := row.LastInsertId()
+	lastID, err := row.LastInsertId()
 	if err != nil {
 		return nil, errors.New(err)
 	}
 
-	b.Id = int(lastId)
+	b.ID = int(lastID)
 
 	return b, nil
 }
 
 // UpdateBooker will take a Booker and update the row with corresponding
 // id with the data in the Booker object.
-func UpdateBooker(bookerId int, ub *Booker) (*Booker, *errors.LaundryError) {
-	b, berr := GetBooker(bookerId)
+func UpdateBooker(bookerID int, ub *Booker) (*Booker, *errors.LaundryError) {
+	b, berr := GetBooker(bookerID)
 	if berr != nil {
 		return nil, berr
 	}
 
-	b.Phone = ub.Phone
+	b.Name = ub.Name
 	b.Email = ub.Email
+	b.Phone = ub.Phone
 
-	db := database.GetConnection()
+	db := database.GetGoqu()
 
-	query := `
-	UPDATE
-		booker
-	SET
-		identifier = ?,
-		name	   = ?,
-		email      = ?,
-		phone      = ?,
-		pin        = ?
-	WHERE
-		id = ?
-	`
+	update := db.From("booker").
+		Where(goqu.Ex{
+			"id": b.ID,
+		}).
+		Update(goqu.Record{
+			"identifier": b.Identifier,
+			"name":       b.Name,
+			"email":      b.Email,
+			"phone":      b.Phone,
+			"pin":        b.Pin,
+		})
 
-	if _, err := db.Exec(query, b.Identifier, b.Name, b.Email, b.Phone, b.Pin, b.Id); err != nil {
-		return nil, errors.New("Could not update booker with ID %d", b.Id).CausedBy(err)
+	if _, err := update.Exec(); err != nil {
+		return nil, errors.New("Could not update booker with ID %d", b.ID).CausedBy(err)
 	}
 
 	return b, nil
@@ -155,17 +157,23 @@ func UpdateBooker(bookerId int, ub *Booker) (*Booker, *errors.LaundryError) {
 // id in the database. A remove will cascade and remove belonging bookings
 // and notifications.
 func RemoveBooker(b *Booker) *errors.LaundryError {
-	db := database.GetConnection()
+	db := database.GetGoqu()
 
-	if _, err := db.Exec("DELETE FROM booker WHERE id = ?", b.Id); err != nil {
+	delete := db.From("booker").
+		Where(goqu.Ex{
+			"id": b.ID,
+		}).
+		Delete()
+
+	if _, err := delete.Exec(); err != nil {
 		return errors.New("Could not remove booker").CausedBy(err)
 	}
 
 	return nil
 }
 
-// RemoveBookerById will remove a booker by the booker id
-func RemoveBookerById(id int) *errors.LaundryError {
+// RemoveBookerByID will remove a booker by the booker id
+func RemoveBookerByID(id int) *errors.LaundryError {
 	b, err := GetBooker(id)
 	if err != nil {
 		return err
@@ -187,9 +195,9 @@ func GetBookerBookings(b *Booker) (*[]BookerBookings, *errors.LaundryError) {
 	return SearchBookings(bs)
 }
 
-// GetBookerBookingsById will take a booker id and return bookings if the id is
+// GetBookerBookingsByID will take a booker id and return bookings if the id is
 // bound to a booker
-func GetBookerBookingsById(id int) (*[]BookerBookings, *errors.LaundryError) {
+func GetBookerBookingsByID(id int) (*[]BookerBookings, *errors.LaundryError) {
 	b, err := GetBooker(id)
 	if err != nil {
 		return nil, err
@@ -199,45 +207,34 @@ func GetBookerBookingsById(id int) (*[]BookerBookings, *errors.LaundryError) {
 }
 
 // SearchBookings will return a list of BookerBookings based on passed search criteria
+// TODO: This should not be inflated like this, the query is bad.
 func SearchBookings(bs BookingsSearch) (*[]BookerBookings, *errors.LaundryError) {
-	db := database.GetConnection()
+	db := database.GetGoqu()
 
-	var (
-		query      string
-		conditions []interface{}
-	)
-
-	query = `
-	SELECT
-		b1.*, b2.*, s.*, m.*
-	FROM
-		bookings AS b1
-	JOIN
-		booker AS b2 ON
-			b1.id_booker = b2.id
-	JOIN
-		slots AS s ON
-			b1.id_slots = s.id
-	JOIN
-		slots_machines AS sm ON
-			s.id = sm.id_slots
-	JOIN
-		machines AS m ON
-			sm.id_machines = m.id
-	WHERE
-		b1.book_date >= DATE(?) AND
-		b1.book_date <= DATE(?)
-	`
-
-	conditions = append(conditions, bs.Start.String(), bs.End.String())
+	query := db.From("bookings").
+		Select("bookings.*", "booker.*", "slots.*", "machines.*").
+		LeftJoin(goqu.I("booker"), goqu.On(goqu.I("booker.id").Eq(goqu.I("bookings.id_booker")))).
+		LeftJoin(goqu.I("slots"), goqu.On(goqu.I("slots.id").Eq(goqu.I("bookings.id_slots")))).
+		LeftJoin(goqu.I("slots_machines"), goqu.On(goqu.I("slots_machines.id_slots").Eq(goqu.I("slots.id")))).
+		LeftJoin(goqu.I("machines"), goqu.On(goqu.I("machines.id").Eq(goqu.I("slots_machines.id_machines")))).
+		Where(
+			goqu.L("bookings.book_date >= DATE(?)", bs.Start.String()),
+			goqu.L("bookings.book_date <= DATE(?)", bs.End.String()),
+		).
+		Prepared(true)
 
 	if bs.Booker != nil {
-		query += `AND b2.id = ?`
-
-		conditions = append(conditions, bs.Booker.Id)
+		query = query.
+			Where(
+				goqu.I("booker.id").Eq(bs.Booker.ID),
+			).
+			Prepared(true)
 	}
 
-	rows, err := db.Queryx(query, conditions...)
+	sql, args, _ := query.ToSql()
+
+	sqlxDb := database.GetConnection()
+	rows, err := sqlxDb.Queryx(sql, args...)
 	if err != nil {
 		return nil, errors.New("Could not get bookings").CausedBy(err)
 	}
@@ -264,7 +261,7 @@ func parseBookings(rows *sqlx.Rows) (*[]BookerBookings, *errors.LaundryError) {
 		}
 
 		booker := Booker{
-			Id:         bl.Booker.Id,
+			ID:         bl.Booker.ID,
 			Identifier: bl.Booker.Identifier,
 			Name:       bl.Booker.Name,
 			Email:      bl.Booker.Email,
@@ -272,13 +269,13 @@ func parseBookings(rows *sqlx.Rows) (*[]BookerBookings, *errors.LaundryError) {
 		}
 
 		machine := Machine{
-			Id:      bl.Machine.Id,
+			ID:      bl.Machine.ID,
 			Info:    bl.Machine.Info,
 			Working: bl.Machine.Working,
 		}
 
 		slot := Slot{
-			Id:      bl.Slot.Id,
+			ID:      bl.Slot.ID,
 			Weekday: bl.Slot.Weekday,
 			Start:   bl.Slot.Start,
 			End:     bl.Slot.End,

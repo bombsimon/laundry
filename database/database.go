@@ -1,14 +1,16 @@
 package database
 
 import (
+	"database/sql"
 	"fmt"
 	"math/rand"
 	"os"
 	"time"
 
 	"github.com/bombsimon/laundry/config"
-	_ "github.com/go-sql-driver/mysql"
+	"github.com/bombsimon/laundry/log"
 	"github.com/jmoiron/sqlx"
+	goqu "gopkg.in/doug-martin/goqu.v4"
 )
 
 var (
@@ -17,6 +19,7 @@ var (
 
 type dbConnection struct {
 	db             *sqlx.DB
+	simpleDb       *sql.DB
 	reconnected    bool
 	reconnectCount int
 }
@@ -24,6 +27,8 @@ type dbConnection struct {
 // SetupConnection will setup connections and store them in a
 // connection pool
 func SetupConnection(config config.Database) {
+	logger := log.GetLogger()
+
 	dsn := os.Getenv("LAUNDRY_DSN")
 	if dsn == "" {
 		dsn = fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?parseTime=1", config.Username, config.Password, config.Host, config.Port, config.Database)
@@ -33,14 +38,18 @@ func SetupConnection(config config.Database) {
 		var dbConn dbConnection
 
 		for j := config.RetryCount; j >= 0; j-- {
-			db, err := sqlx.Connect("mysql", dsn)
+			logger.Info("connection to databas")
+
+			db, err := sql.Open("mysql", dsn)
 
 			if err != nil {
+				logger.Warnf("could not connect att attempt %d: %s", j, err)
 				time.Sleep(time.Second * 5)
 				continue
 			}
 
-			dbConn.db = db
+			dbConn.simpleDb = db
+			dbConn.db = sqlx.NewDb(db, "mysql")
 		}
 
 		go monitorConnection(dbConn)
@@ -57,12 +66,25 @@ func GetConnection() *sqlx.DB {
 	return connectionPool[r.Intn(len(connectionPool))].db
 }
 
+// GetSimpleConnection will return a simple SQL connection.
+func GetSimpleConnection() *sql.DB {
+	s := rand.NewSource(time.Now().Unix())
+	r := rand.New(s)
+
+	return connectionPool[r.Intn(len(connectionPool))].simpleDb
+}
+
+// GetGoqu will return a goqu type for goqu queries.
+func GetGoqu() *goqu.Database {
+	return goqu.New("mysql", GetSimpleConnection())
+}
+
 func monitorConnection(d dbConnection) {
 	for {
 		if err := d.db.Ping(); err != nil {
 			// Should reconnect
 			d.reconnected = true
-			d.reconnectCount += 1
+			d.reconnectCount++
 		}
 
 		time.Sleep(time.Second * 5)
