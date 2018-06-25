@@ -1,4 +1,8 @@
 # Laundry Booking
+
+[![Build Status](https://travis-ci.org/bombsimon/laundry.svg?branch=master)](https://travis-ci.org/bombsimon/laundry)
+[![GoDoc](https://godoc.org/github.com/bombsimon/laundry?status.svg)](https://godoc.org/github.com/bombsimon/laundry)
+
 This is an application created to host laundry bookings for appartment buildings
 as a digital soultion. The main reason for this is to provide a simple *deploy
 it yourself* solution as an alternative to the expensive existing services. At
