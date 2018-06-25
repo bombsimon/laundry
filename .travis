@@ -1,0 +1,15 @@
+language: go
+go:
+  - "1.10"
+
+install:
+  - go get -v github.com/golang/dep/cmd/dep
+  - dep ensure -v -vendor-only
+
+script:
+  - go test -v -coverprofile c.out ./...
+
+notifications:
+  email: false
+
+# vim: set ts=2 sw=2 et:
