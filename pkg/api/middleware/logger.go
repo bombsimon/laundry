@@ -5,8 +5,6 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/bombsimon/laundry/errors"
-	"github.com/bombsimon/laundry/log"
 	"github.com/sirupsen/logrus"
 )
 
@@ -14,10 +12,11 @@ import (
 type LoggingResponseWriter struct {
 	http.ResponseWriter
 	statusCode int
-	err        *errors.LaundryError
+	err        error
 }
 
-// NewLoggingResponseWriter will return a new respone writer capable of tacking status code
+// NewLoggingResponseWriter will return a new response writer capable of
+// tacking status code
 func NewLoggingResponseWriter(w http.ResponseWriter) *LoggingResponseWriter {
 	return &LoggingResponseWriter{w, http.StatusOK, nil}
 }
@@ -30,16 +29,15 @@ func (lrw *LoggingResponseWriter) WriteHeader(code int) {
 
 // WriteError can be used to store an error from the handler in the response writer
 func (lrw *LoggingResponseWriter) WriteError(err error) {
-	switch e := err.(type) {
-	case *errors.LaundryError:
-		lrw.err = e
-	case error:
-		lrw.err = errors.New(e)
-	}
+	lrw.err = err
 }
 
+// Logger is a semi verbose JSON logger that will log all requests.
 func Logger() Adapter {
+	logger := logrus.New()
+
 	return func(h http.Handler) http.Handler {
+
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			startTime := time.Now()
 
@@ -47,25 +45,25 @@ func Logger() Adapter {
 			h.ServeHTTP(lrw, r)
 
 			defer func() {
-				logger := log.GetLogger().WithFields(logrus.Fields{
+				fieldLogger := logger.WithFields(logrus.Fields{
 					"method":         r.Method,
-					"remote address": r.RemoteAddr,
+					"remote_address": r.RemoteAddr,
 					"path":           r.URL.String(),
 					"protocol":       r.Proto,
-					"content length": r.ContentLength,
+					"content_length": r.ContentLength,
 					"status":         http.StatusText(lrw.statusCode),
-					"status code":    lrw.statusCode,
+					"status_code":    lrw.statusCode,
 					"elapsed":        fmt.Sprintf("%.3f %s", time.Now().Sub(startTime).Seconds()*1000, "ms"),
 				})
 
 				if lrw.err != nil {
-					logger.WithFields(logrus.Fields{
-						"error": lrw.err.Reasons,
+					fieldLogger.WithFields(logrus.Fields{
+						"error": lrw.err.Error(),
 					}).Errorf("Error processing request")
 					return
 				}
 
-				logger.Infof("Request processed")
+				fieldLogger.Infof("Request processed")
 			}()
 		})
 	}

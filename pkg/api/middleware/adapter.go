@@ -13,5 +13,6 @@ func Adapt(h http.Handler, adapters ...Adapter) http.Handler {
 	for _, adapter := range adapters {
 		h = adapter(h)
 	}
+
 	return h
 }

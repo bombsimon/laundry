@@ -18,4 +18,4 @@ COPY ./ /go/src/github.com/bombsimon/laundry/
 
 RUN go get -u github.com/golang/dep/cmd/dep && dep ensure
 
-CMD go build -o laundry cmd/laundry-service/*.go && ./laundry --config-file files/back-end.yaml
+CMD go build -o laundry cmd/laundry/*.go && ./laundry

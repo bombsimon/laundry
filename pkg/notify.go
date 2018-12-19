@@ -1,4 +1,4 @@
-package laundry
+package pkg
 
 // NotificationType represents the different kind of notifications
 // that can be sent

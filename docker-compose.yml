@@ -1,3 +1,4 @@
+---
 version: '3'
 
 services:
@@ -9,6 +10,9 @@ services:
     image: laundry-be
     ports:
       - "3400:3400"
+    environment:
+      MYSQL_HOST: db-service
+      MYSQL_TCP_PORT: 3306
     links:
       - db-service
     depends_on:
@@ -21,7 +25,7 @@ services:
     ports:
       - "3401:3306"
     volumes:
-         - ./config/sql:/docker-entrypoint-initdb.d
+      - ./test/sql:/docker-entrypoint-initdb.d
     environment:
       MYSQL_ROOT_PASSWORD: laundry
       MYSQL_USER: laundry
@@ -30,4 +34,4 @@ services:
     tty: true
     network_mode: bridge
 
-# vim set ft=2 ts=2 expandtab:
+# vim set ft=yaml sw=2 ts=2 expandtab:
